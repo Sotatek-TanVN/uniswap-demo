@@ -3,6 +3,9 @@
     <button @click="showToken()">
       Show Token
     </button>
+    <button @click="approve()">
+      Approve
+    </button>
     <button @click="swap()">
       Swap
     </button>
@@ -32,6 +35,39 @@ export default {
       console.log(UNI)
     },
 
+    async approve () {
+      const trader = account.address;
+      const UNI = "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984"
+
+      let web3 = window.web3
+      let contract = await this.getContractInstance(web3);
+
+      const token = new web3.eth.Contract(ERC20.abi, UNI);
+
+      const decimals = await token.methods.decimals().call();
+      const amountIn = (1 * 10 ** decimals).toString();
+
+      // 1. Approve
+      const approveData = token.methods.approve(
+        contract._address,
+        amountIn
+      );
+
+      const approveTxParams = {
+        nonce: web3.utils.toHex(await web3.eth.getTransactionCount(trader)),
+        gasLimit: web3.utils.toHex(await approveData.estimateGas({ from: trader })),
+        gasPrice: web3.utils.toHex(await web3.eth.getGasPrice()),
+        to: UNI,
+        data: approveData.encodeABI(),
+        value: '0x00' // 0
+      }
+
+      const tx = new Tx(approveTxParams, { chain: 'rinkeby' });
+      tx.sign(Buffer.from(account.private, 'hex'))
+      const serializeTx = tx.serialize();
+      await this.sendTransaction(serializeTx);
+    },
+
     async swap () {
       const trader = account.address;
       const WETH = '0xc778417e063141139fce010982780140aa0cd5ab';
@@ -44,26 +80,6 @@ export default {
 
       const decimals = await token.methods.decimals().call();
       const amountIn = (1 * 10 ** decimals).toString();
-
-      // 1. Approve
-      // const approveData = token.methods.approve(
-      //   contract._address,
-      //   amountIn
-      // );
-
-      // const approveTxParams = {
-      //   nonce: web3.utils.toHex(await web3.eth.getTransactionCount(trader)),
-      //   gasLimit: web3.utils.toHex(await approveData.estimateGas({ from: trader })),
-      //   gasPrice: web3.utils.toHex(await web3.eth.getGasPrice()),
-      //   to: UNI,
-      //   data: approveData.encodeABI(),
-      //   value: '0x00' // 0
-      // }
-
-      // const tx = new Tx(approveTxParams, { chain: 'rinkeby' });
-      // tx.sign(Buffer.from(account.private, 'hex'))
-      // const serializeTx = tx.serialize();
-      // await this.sendTransaction(serializeTx);
 
       // 2. Swap
       const path = [UNI, WETH];
