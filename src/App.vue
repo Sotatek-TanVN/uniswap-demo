@@ -12,13 +12,24 @@
     <button @click="swap()">
       Swap
     </button>
+    <button @click="getPrice()">
+      Get Price
+    </button>
+    <button @click="getMinimumReceived()">
+      Get Minimum Received
+    </button>
+    <button @click="getPriceImpact()">
+      Get Price Impact
+    </button>
+    <button @click="getFee()">
+      Get Fee
+    </button>
   </div>
 </template>
 
 <script>
 import Web3 from 'web3';
-import { ChainId, Token } from '@uniswap/sdk'
-// Trade, Fetcher, , Route, TokenAmount, TradeType, Percent } from '@uniswap/sdk'
+import { ChainId, Token, Fetcher, Trade, Route, TokenAmount, TradeType, Percent } from '@uniswap/sdk'
 import IUniswapV2Router02 from './IUniswapV2Router02.json';
 import ERC20 from './ERC20.json';
 // account.json format
@@ -128,29 +139,53 @@ export default {
 
 
     // Guide 6 - ==================================================
-    getPrice () {
-      console.log(account.address)
+    async getPrice () {
+      const tokenUni = await Fetcher.fetchTokenData(ChainId.RINKEBY, this.UNI)
+      const tokenWeth = await Fetcher.fetchTokenData(ChainId.RINKEBY, this.WETH)
+      const pair = await Fetcher.fetchPairData(tokenUni, tokenWeth)
+      const route = new Route([pair], tokenWeth)
+
+      console.log(route.midPrice.toFixed()) // 1 weth = x uni
+      console.log(route.midPrice.invert().toFixed()) // 1 uni = y weth
     },
     // ============================================================
 
 
     // Guide 8 - ==================================================
-    getMinimumReceived () {
-      console.log(account.address)
+    async getMinimumReceived () {
+      const tokenUni = await Fetcher.fetchTokenData(ChainId.RINKEBY, this.UNI)
+      const tokenWeth = await Fetcher.fetchTokenData(ChainId.RINKEBY, this.WETH)
+      const pair = await Fetcher.fetchPairData(tokenUni, tokenWeth)
+      const route = new Route([pair], tokenWeth)
+
+      const amountIn = '1000000000000000000' // 1 WETH
+      const trade = new Trade(route, new TokenAmount(tokenWeth, amountIn), TradeType.EXACT_INPUT)
+      const slippageTolerance = new Percent('50', '10000') // 50 bips, or 0.50%
+
+      console.log(trade.minimumAmountOut(slippageTolerance).toFixed())
     },
     // ============================================================
 
 
     // Guide 9 - ==================================================
-    getPriceImpact () {
-      console.log(account.address)
+    async getPriceImpact () {
+      const tokenUni = await Fetcher.fetchTokenData(ChainId.RINKEBY, this.UNI)
+      const tokenWeth = await Fetcher.fetchTokenData(ChainId.RINKEBY, this.WETH)
+      const pair = await Fetcher.fetchPairData(tokenUni, tokenWeth)
+      const route = new Route([pair], tokenWeth)
+
+      const amountIn = '1000000000000000000' // 1 WETH
+      const trade = new Trade(route, new TokenAmount(tokenWeth, amountIn), TradeType.EXACT_INPUT)
+
+      console.log(trade.priceImpact.toFixed())
     },
     // ============================================================
 
 
     // Guide 10 - ==================================================
     getFee () {
-      console.log(account.address)
+      const amount = 1;
+      console.log(amount * 0.003)
     },
     // ============================================================
 
