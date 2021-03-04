@@ -69,6 +69,7 @@ export default {
     },
 
     async swap () {
+      const tokenForSwap = 1;
       const trader = account.address;
       const WETH = '0xc778417e063141139fce010982780140aa0cd5ab';
       const UNI = "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984"
@@ -79,7 +80,7 @@ export default {
       const token = new web3.eth.Contract(ERC20.abi, UNI);
 
       const decimals = await token.methods.decimals().call();
-      const amountIn = (1 * 10 ** decimals).toString();
+      const amountIn = (tokenForSwap * 10 ** decimals).toString();
 
       // 2. Swap
       const path = [UNI, WETH];
