@@ -95,8 +95,6 @@ export default {
         trader,
         Date.now() + 1000
       );
-      console.log(1)
-      console.log(await swapData.estimateGas({ from: trader }))
       const params = {
         nonce: web3.utils.toHex(await web3.eth.getTransactionCount(trader)),
         gasLimit: web3.utils.toHex(await swapData.estimateGas({ from: trader })),
@@ -105,13 +103,8 @@ export default {
         data: swapData.encodeABI(),
         value: '0x00' // 0
       }
-      console.log(1)
 
-      const tx = new Tx(params, { chain: 'rinkeby' });
-      tx.sign(Buffer.from(account.private, 'hex'))
-      const serializeTx = tx.serialize();
-      await this.sendTransaction(serializeTx);
-      // await this.signTransaction(params);
+      await this.signTransaction(params);
     },
     // ============================================================
 
@@ -175,13 +168,9 @@ export default {
       const tx = new Tx(params, { chain: 'rinkeby' });
       tx.sign(Buffer.from(account.private, 'hex'))
       const serializeTx = tx.serialize();
-      await this.sendTransaction(serializeTx);
-    },
-
-    async sendTransaction (serializeTx) {
       await window.web3.eth.sendSignedTransaction('0x' + serializeTx.toString('hex'), function(err, hash) {
         if (!err) {
-          console.log(hash); // "0x7f9fade1c0d57a7af66ab4ead79fade1c0d57a7af66ab4ead7c2c2eb7b11a91385"
+          console.log(hash);
         } else {
           console.log(err)
         }
