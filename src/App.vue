@@ -64,8 +64,6 @@ export default {
 
     // Guide 11 - ==================================================
     async approve () {
-      const trader = account.address;
-
       let web3 = window.web3
       let contract = await this.getContractInstance(web3);
 
@@ -89,8 +87,8 @@ export default {
         );
 
         const params = {
-          nonce: web3.utils.toHex(await web3.eth.getTransactionCount(trader)),
-          gasLimit: web3.utils.toHex(await data.estimateGas({ from: trader })),
+          nonce: web3.utils.toHex(await web3.eth.getTransactionCount(account.address)),
+          gasLimit: web3.utils.toHex(await data.estimateGas({ from: account.address })),
           gasPrice: web3.utils.toHex(await web3.eth.getGasPrice()),
           to: this.UNI,
           data: data.encodeABI(),
@@ -107,7 +105,6 @@ export default {
     // Guide 7 - ==================================================
     async swap () {
       const tokenForSwap = 1;
-      const trader = account.address;
 
       let web3 = window.web3
       let contract = await this.getContractInstance(web3);
@@ -127,7 +124,7 @@ export default {
           amountIn,
           amountOutMin,
           path,
-          trader,
+          account.address,
           Date.now() + 1000
         ).send({ from: account.address });;
       } else {
@@ -136,12 +133,12 @@ export default {
           amountIn,
           amountOutMin,
           path,
-          trader,
+          account.address,
           Date.now() + 1000
         );
         const params = {
-          nonce: web3.utils.toHex(await web3.eth.getTransactionCount(trader)),
-          gasLimit: web3.utils.toHex(await data.estimateGas({ from: trader })),
+          nonce: web3.utils.toHex(await web3.eth.getTransactionCount(account.address)),
+          gasLimit: web3.utils.toHex(await data.estimateGas({ from: account.address })),
           gasPrice: web3.utils.toHex(await web3.eth.getGasPrice()),
           to: contract._address,
           data: data.encodeABI(),
