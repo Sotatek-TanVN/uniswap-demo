@@ -3,6 +3,9 @@
     <button @click="showToken()">
       Show Token
     </button>
+    <button @click="getBalance()">
+      Show Balance
+    </button>
     <button @click="approve()">
       Approve
     </button>
@@ -18,31 +21,32 @@ import { ChainId, Token } from '@uniswap/sdk'
 // Trade, Fetcher, , Route, TokenAmount, TradeType, Percent } from '@uniswap/sdk'
 import IUniswapV2Router02 from './IUniswapV2Router02.json';
 import ERC20 from './ERC20.json';
-import account from './account.json';
+// account.json format
+// {
+//     "address": "",
+//     "private": ""
+// }
+import account from '../account.json';
 const Tx = require('ethereumjs-tx');
 
 export default {
   name: 'App',
+  data: function () {
+    return {
+      UNI: '0x1f9840a85d5af5bf1d1762f925bdaddc4201f984',
+      WETH: '0xc778417e063141139fce010982780140aa0cd5ab',
+    }
+  },
   methods: {
 
-    showToken () {
-      const chainId = ChainId.RINKEBY
-      const tokenAddress = '0x1f9840a85d5af5bf1d1762f925bdaddc4201f984' // must be checksummed
-      const decimals = 18
-
-      const UNI = new Token(chainId, tokenAddress, decimals)
-      console.log(chainId)
-      console.log(UNI)
-    },
-
+    // Guide 11 - ==================================================
     async approve () {
       const trader = account.address;
-      const UNI = "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984"
 
       let web3 = window.web3
       let contract = await this.getContractInstance(web3);
 
-      const token = new web3.eth.Contract(ERC20.abi, UNI);
+      const token = new web3.eth.Contract(ERC20.abi, this.UNI);
 
       const decimals = await token.methods.decimals().call();
       const amountIn = (1 * 10 ** decimals).toString();
@@ -53,37 +57,35 @@ export default {
         amountIn
       );
 
-      const approveTxParams = {
+      const params = {
         nonce: web3.utils.toHex(await web3.eth.getTransactionCount(trader)),
         gasLimit: web3.utils.toHex(await approveData.estimateGas({ from: trader })),
         gasPrice: web3.utils.toHex(await web3.eth.getGasPrice()),
-        to: UNI,
+        to: this.UNI,
         data: approveData.encodeABI(),
         value: '0x00' // 0
       }
 
-      const tx = new Tx(approveTxParams, { chain: 'rinkeby' });
-      tx.sign(Buffer.from(account.private, 'hex'))
-      const serializeTx = tx.serialize();
-      await this.sendTransaction(serializeTx);
+      await this.signTransaction(params)
     },
+    // ============================================================
 
+
+    // Guide 7 - ==================================================
     async swap () {
       const tokenForSwap = 1;
       const trader = account.address;
-      const WETH = '0xc778417e063141139fce010982780140aa0cd5ab';
-      const UNI = "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984"
 
       let web3 = window.web3
       let contract = await this.getContractInstance(web3);
 
-      const token = new web3.eth.Contract(ERC20.abi, UNI);
+      const token = new web3.eth.Contract(ERC20.abi, this.UNI);
 
       const decimals = await token.methods.decimals().call();
       const amountIn = (tokenForSwap * 10 ** decimals).toString();
 
       // 2. Swap
-      const path = [UNI, WETH];
+      const path = [this.UNI, this.WETH];
       const amountOutMin = '0';
 
       const swapData = contract.methods.swapExactTokensForETH(
@@ -93,8 +95,9 @@ export default {
         trader,
         Date.now() + 1000
       );
-
-      const swapParams = {
+      console.log(1)
+      console.log(await swapData.estimateGas({ from: trader }))
+      const params = {
         nonce: web3.utils.toHex(await web3.eth.getTransactionCount(trader)),
         gasLimit: web3.utils.toHex(await swapData.estimateGas({ from: trader })),
         gasPrice: web3.utils.toHex(await web3.eth.getGasPrice()),
@@ -102,14 +105,80 @@ export default {
         data: swapData.encodeABI(),
         value: '0x00' // 0
       }
+      console.log(1)
 
-      const tx = new Tx(swapParams, { chain: 'rinkeby' });
+      const tx = new Tx(params, { chain: 'rinkeby' });
+      tx.sign(Buffer.from(account.private, 'hex'))
+      const serializeTx = tx.serialize();
+      await this.sendTransaction(serializeTx);
+      // await this.signTransaction(params);
+    },
+    // ============================================================
+
+
+    // Guide 1 2 4 5 - ==================================================
+    async getBalance () {
+      const eth = await window.web3.eth.getBalance(account.address)
+      console.log(eth);
+      const tokenContract = new window.web3.eth.Contract(ERC20.abi, this.UNI);
+      const token = await tokenContract.methods.balanceOf(account.address).call()
+      console.log(token)
+    },
+    // ============================================================
+
+
+    // Guide 3 - ==================================================
+    getAddress () {
+      console.log(account.address)
+    },
+    // ============================================================
+
+
+    // Guide 6 - ==================================================
+    getPrice () {
+      console.log(account.address)
+    },
+    // ============================================================
+
+
+    // Guide 8 - ==================================================
+    getMinimumReceived () {
+      console.log(account.address)
+    },
+    // ============================================================
+
+
+    // Guide 9 - ==================================================
+    getPriceImpact () {
+      console.log(account.address)
+    },
+    // ============================================================
+
+
+    // Guide 10 - ==================================================
+    getFee () {
+      console.log(account.address)
+    },
+    // ============================================================
+
+    showToken () {
+      const chainId = ChainId.RINKEBY
+      const tokenAddress = '0x1f9840a85d5af5bf1d1762f925bdaddc4201f984' // must be checksummed
+      const decimals = 18
+
+      const uni = new Token(chainId, tokenAddress, decimals)
+      console.log(chainId)
+      console.log(uni)
+    },
+
+    async signTransaction (params) {
+      const tx = new Tx(params, { chain: 'rinkeby' });
       tx.sign(Buffer.from(account.private, 'hex'))
       const serializeTx = tx.serialize();
       await this.sendTransaction(serializeTx);
     },
 
-    async sendTransaction(serializeTx) {
+    async sendTransaction (serializeTx) {
       await window.web3.eth.sendSignedTransaction('0x' + serializeTx.toString('hex'), function(err, hash) {
         if (!err) {
           console.log(hash); // "0x7f9fade1c0d57a7af66ab4ead79fade1c0d57a7af66ab4ead7c2c2eb7b11a91385"
@@ -119,13 +188,13 @@ export default {
       })
     },
 
-    getContractInstance(web3Instance) {
+    getContractInstance (web3Instance) {
       const router2Addr = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D'
       const contractAbi = IUniswapV2Router02.abi;
       return new web3Instance.eth.Contract(contractAbi, router2Addr);
     },
 
-    getTokenContract(web3Instance, address) {
+    getTokenContract (web3Instance, address) {
       const tokenAbi = ERC20.abi;
       return new web3Instance.eth.Contract(tokenAbi, address);
     },
@@ -148,5 +217,8 @@ export default {
   text-align: center;
   color: #2c3e50;
   margin-top: 60px;
+}
+button {
+  margin-right: 10px;
 }
 </style>
