@@ -1,8 +1,10 @@
 <template>
   <div id="app">
-    <button @click="showToken()">
-      Show Token
-    </button>
+    <input type="radio" v-model="isMetamask" value="false">PrivateKey
+    <input type="radio" v-model="isMetamask" value="true">Metamask
+    <br>
+    <br>
+    <br>
     <button @click="getBalance()">
       Show Balance
     </button>
@@ -29,7 +31,7 @@
 
 <script>
 import Web3 from 'web3';
-import { ChainId, Token, Fetcher, Trade, Route, TokenAmount, TradeType, Percent } from '@uniswap/sdk'
+import { ChainId, Fetcher, Trade, Route, TokenAmount, TradeType, Percent } from '@uniswap/sdk'
 import IUniswapV2Router02 from './IUniswapV2Router02.json';
 import ERC20 from './ERC20.json';
 // account.json format
@@ -46,6 +48,16 @@ export default {
     return {
       UNI: '0x1f9840a85d5af5bf1d1762f925bdaddc4201f984',
       WETH: '0xc778417e063141139fce010982780140aa0cd5ab',
+      isMetamask: false,
+    }
+  },
+  watch: {
+    async isMetamask () {
+      if (this.isMetamask) {
+        await this.connectToMetaMask()
+      } else {
+        await this.connectByPrivateKey()
+      }
     }
   },
   methods: {
@@ -59,25 +71,35 @@ export default {
 
       const token = new web3.eth.Contract(ERC20.abi, this.UNI);
 
+      // 1. Approve
       const decimals = await token.methods.decimals().call();
       const amountIn = (1 * 10 ** decimals).toString();
 
-      // 1. Approve
-      const approveData = token.methods.approve(
-        contract._address,
-        amountIn
-      );
+      if (this.isMetamask) {
+        // Call smart contract via metamask
+        token.methods.approve(
+          contract._address,
+          amountIn
+        ).send({ from: account.address });
+      } else {
+        // Call smart contract via private key
+        const data = token.methods.approve(
+          contract._address,
+          amountIn
+        );
 
-      const params = {
-        nonce: web3.utils.toHex(await web3.eth.getTransactionCount(trader)),
-        gasLimit: web3.utils.toHex(await approveData.estimateGas({ from: trader })),
-        gasPrice: web3.utils.toHex(await web3.eth.getGasPrice()),
-        to: this.UNI,
-        data: approveData.encodeABI(),
-        value: '0x00' // 0
+        const params = {
+          nonce: web3.utils.toHex(await web3.eth.getTransactionCount(trader)),
+          gasLimit: web3.utils.toHex(await data.estimateGas({ from: trader })),
+          gasPrice: web3.utils.toHex(await web3.eth.getGasPrice()),
+          to: this.UNI,
+          data: data.encodeABI(),
+          value: '0x00' // 0
+        }
+
+        await this.signTransaction(params)
       }
 
-      await this.signTransaction(params)
     },
     // ============================================================
 
@@ -99,23 +121,35 @@ export default {
       const path = [this.UNI, this.WETH];
       const amountOutMin = '0';
 
-      const swapData = contract.methods.swapExactTokensForETH(
-        amountIn,
-        amountOutMin,
-        path,
-        trader,
-        Date.now() + 1000
-      );
-      const params = {
-        nonce: web3.utils.toHex(await web3.eth.getTransactionCount(trader)),
-        gasLimit: web3.utils.toHex(await swapData.estimateGas({ from: trader })),
-        gasPrice: web3.utils.toHex(await web3.eth.getGasPrice()),
-        to: contract._address,
-        data: swapData.encodeABI(),
-        value: '0x00' // 0
-      }
+      if (this.isMetamask) {
+        // Call smart contract via metamask
+        contract.methods.swapExactTokensForETH(
+          amountIn,
+          amountOutMin,
+          path,
+          trader,
+          Date.now() + 1000
+        ).send({ from: account.address });;
+      } else {
+        // Call smart contract via private key
+        const data = contract.methods.swapExactTokensForETH(
+          amountIn,
+          amountOutMin,
+          path,
+          trader,
+          Date.now() + 1000
+        );
+        const params = {
+          nonce: web3.utils.toHex(await web3.eth.getTransactionCount(trader)),
+          gasLimit: web3.utils.toHex(await data.estimateGas({ from: trader })),
+          gasPrice: web3.utils.toHex(await web3.eth.getGasPrice()),
+          to: contract._address,
+          data: data.encodeABI(),
+          value: '0x00' // 0
+        }
 
-      await this.signTransaction(params);
+        await this.signTransaction(params);
+      }
     },
     // ============================================================
 
@@ -140,11 +174,7 @@ export default {
 
     // Guide 6 - ==================================================
     async getPrice () {
-      const tokenUni = await Fetcher.fetchTokenData(ChainId.RINKEBY, this.UNI)
-      const tokenWeth = await Fetcher.fetchTokenData(ChainId.RINKEBY, this.WETH)
-      const pair = await Fetcher.fetchPairData(tokenUni, tokenWeth)
-      const route = new Route([pair], tokenWeth)
-
+      const route = await this.getRoute()
       console.log(route.midPrice.toFixed()) // 1 weth = x uni
       console.log(route.midPrice.invert().toFixed()) // 1 uni = y weth
     },
@@ -153,15 +183,8 @@ export default {
 
     // Guide 8 - ==================================================
     async getMinimumReceived () {
-      const tokenUni = await Fetcher.fetchTokenData(ChainId.RINKEBY, this.UNI)
-      const tokenWeth = await Fetcher.fetchTokenData(ChainId.RINKEBY, this.WETH)
-      const pair = await Fetcher.fetchPairData(tokenUni, tokenWeth)
-      const route = new Route([pair], tokenWeth)
-
-      const amountIn = '1000000000000000000' // 1 WETH
-      const trade = new Trade(route, new TokenAmount(tokenWeth, amountIn), TradeType.EXACT_INPUT)
+      const trade = await this.getTrade();
       const slippageTolerance = new Percent('50', '10000') // 50 bips, or 0.50%
-
       console.log(trade.minimumAmountOut(slippageTolerance).toFixed())
     },
     // ============================================================
@@ -169,14 +192,7 @@ export default {
 
     // Guide 9 - ==================================================
     async getPriceImpact () {
-      const tokenUni = await Fetcher.fetchTokenData(ChainId.RINKEBY, this.UNI)
-      const tokenWeth = await Fetcher.fetchTokenData(ChainId.RINKEBY, this.WETH)
-      const pair = await Fetcher.fetchPairData(tokenUni, tokenWeth)
-      const route = new Route([pair], tokenWeth)
-
-      const amountIn = '1000000000000000000' // 1 WETH
-      const trade = new Trade(route, new TokenAmount(tokenWeth, amountIn), TradeType.EXACT_INPUT)
-
+      const trade = await this.getTrade();
       console.log(trade.priceImpact.toFixed())
     },
     // ============================================================
@@ -189,14 +205,24 @@ export default {
     },
     // ============================================================
 
-    showToken () {
-      const chainId = ChainId.RINKEBY
-      const tokenAddress = '0x1f9840a85d5af5bf1d1762f925bdaddc4201f984' // must be checksummed
-      const decimals = 18
 
-      const uni = new Token(chainId, tokenAddress, decimals)
-      console.log(chainId)
-      console.log(uni)
+    async getRoute () {
+      const tokenUni = await Fetcher.fetchTokenData(ChainId.RINKEBY, this.UNI)
+      const tokenWeth = await Fetcher.fetchTokenData(ChainId.RINKEBY, this.WETH)
+      const pair = await Fetcher.fetchPairData(tokenUni, tokenWeth)
+      const route = new Route([pair], tokenWeth)
+      return route
+    },
+
+    async getTrade () {
+      const tokenUni = await Fetcher.fetchTokenData(ChainId.RINKEBY, this.UNI)
+      const tokenWeth = await Fetcher.fetchTokenData(ChainId.RINKEBY, this.WETH)
+      const pair = await Fetcher.fetchPairData(tokenUni, tokenWeth)
+      const route = new Route([pair], tokenWeth)
+
+      const amountIn = '1000000000000000000' // 1 WETH
+      const trade = new Trade(route, new TokenAmount(tokenWeth, amountIn), TradeType.EXACT_INPUT)
+      return trade
     },
 
     async signTransaction (params) {
@@ -222,10 +248,32 @@ export default {
       const tokenAbi = ERC20.abi;
       return new web3Instance.eth.Contract(tokenAbi, address);
     },
+
+    async connectToMetaMask() {
+      if (window.ethereum) {
+        window.web3 = new Web3(window.ethereum);
+        await window.ethereum.enable();
+      }
+    },
+
+    async connectByPrivateKey() {
+      try {
+        const provider = new Web3.providers.HttpProvider(
+          'https://rinkeby.infura.io/v3/2806c626047f4fb590c7e20593b7dd73'
+        );
+        window.web3 = new Web3(provider);
+      } catch (err) {
+
+      }
+    }
   },
 
-  mounted () {
-    window.web3 = new Web3(new Web3.providers.HttpProvider('https://rinkeby.infura.io/v3/2806c626047f4fb590c7e20593b7dd73'));
+  async mounted () {
+    if (this.isMetamask) {
+      await this.connectToMetaMask()
+    } else {
+      await this.connectByPrivateKey()
+    }
   },
   created () {
 
