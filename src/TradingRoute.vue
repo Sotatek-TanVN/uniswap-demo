@@ -42,6 +42,22 @@ export const DAI = new Token(
   "Dai Stablecoin"
 );
 
+export const DAIRinkeby = new Token(
+  ChainId.RINKEBY,
+  "0x6D7F0754FFeb405d23C51CE938289d4835bE3b14",
+  18,
+  "cDAI",
+  "Compound Dai"
+);
+
+const USDTRinkeby = new Token(
+  ChainId.RINKEBY,
+  "0xD9BA894E0097f8cC2BBc9D24D308b98e36dc6D02",
+  18,
+  "USDT",
+  "Compound USD"
+)
+
 export const USDC = new Token(
   ChainId.MAINNET,
   "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
@@ -98,11 +114,7 @@ const BASES_TO_CHECK_TRADES_AGAINST = {
   ...WETH_ONLY,
   [ChainId.MAINNET]: [
     ...WETH_ONLY[ChainId.MAINNET], 
-    USDC, 
-    USDT,
-    COMP,
-    MKR,
-    DAI
+    USDC, USDT, COMP
   ]
 };
 
@@ -140,8 +152,7 @@ export default {
     }
   },
   mounted: async function() {
-    const bestTrade = await this.findBestTradeExactIn(new TokenAmount(DAI, 1), AMPL);
-    console.log(bestTrade);
+    const bestTrade = await this.findBestTradeExactIn(new TokenAmount(USDC, 1), MKR);
     this.bestTrade = bestTrade;
   },
   methods: {
