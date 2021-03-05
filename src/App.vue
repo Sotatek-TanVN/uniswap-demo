@@ -5,6 +5,24 @@
     <br>
     <br>
     <br>
+    <select v-model="from">
+      <option v-for="token in listToken">
+        {{ token.symbol }} {{ token.address }}
+      </option>
+    </select>
+    <select v-model="to">
+      <option v-for="token in listToken">
+        {{ token.symbol }} {{ token.address }}
+      </option>
+    </select>
+    <br>
+    <br>
+    <br>
+    <input type="text" v-model="numberFrom">
+    <input disabled type="text" v-model="numberTo">
+    <br>
+    <br>
+    <br>
     <button @click="getBalance()">
       Show Balance
     </button>
@@ -31,14 +49,10 @@
 
 <script>
 import Web3 from 'web3';
-import { ChainId, Fetcher, Trade, Route, TokenAmount, TradeType, Percent } from '@uniswap/sdk'
+import { ChainId, Fetcher, Trade, Route, TokenAmount, TradeType, Percent, WETH as weth } from '@uniswap/sdk'
+import DEFAULT_TOKEN_LIST from './rinkebyToken.json'
 import IUniswapV2Router02 from './IUniswapV2Router02.json';
 import ERC20 from './ERC20.json';
-// account.json format
-// {
-//     "address": "",
-//     "private": ""
-// }
 import account from '../account.json';
 const Tx = require('ethereumjs-tx');
 
@@ -47,8 +61,15 @@ export default {
   data: function () {
     return {
       UNI: '0x1f9840a85d5af5bf1d1762f925bdaddc4201f984',
-      WETH: '0xc778417e063141139fce010982780140aa0cd5ab',
+      WETH: weth[ChainId.RINKEBY].address,
       isMetamask: false,
+      from: '',
+      to: '',
+      listToken: DEFAULT_TOKEN_LIST,
+      addressFrom: '',
+      addressTo: '',
+      numberFrom: '',
+      numberTo: '',
     }
   },
   watch: {
@@ -58,7 +79,17 @@ export default {
       } else {
         await this.connectByPrivateKey()
       }
-    }
+    },
+    from (value) {
+      this.addressFrom = value.split(' ')[1]
+    },
+    to (value) {
+      this.addressTo = value.split(' ')[1]
+    },
+    async numberFrom (value) {
+      const route = await this.getRoute(this.addressFrom, this.addressTo)
+      this.numberTo = route.midPrice.invert().toFixed() * value
+    },
   },
   methods: {
 
@@ -67,9 +98,8 @@ export default {
       let web3 = window.web3
       let contract = await this.getContractInstance(web3);
 
-      const token = new web3.eth.Contract(ERC20.abi, this.UNI);
+      const token = new web3.eth.Contract(ERC20.abi, this.addressFrom);
 
-      // 1. Approve
       const decimals = await token.methods.decimals().call();
       const amountIn = (1 * 10 ** decimals).toString();
 
@@ -104,45 +134,51 @@ export default {
 
     // Guide 7 - ==================================================
     async swap () {
-      const tokenForSwap = 1;
+      const tokenForSwap = this.numberFrom;
 
       let web3 = window.web3
       let contract = await this.getContractInstance(web3);
 
-      const token = new web3.eth.Contract(ERC20.abi, this.UNI);
+      const token = new web3.eth.Contract(ERC20.abi, this.addressFrom);
 
       const decimals = await token.methods.decimals().call();
       const amountIn = (tokenForSwap * 10 ** decimals).toString();
 
-      // 2. Swap
-      const path = [this.UNI, this.WETH];
+      const path = [this.addressFrom, this.addressTo];
       const amountOutMin = '0';
+
+      let methodName = ''
+      if (this.WETH == this.addressFrom) {
+        methodName = 'swapExactETHForTokens'
+      } else if (this.WETH == this.addressTo) {
+        methodName = 'swapExactTokensForETH'
+      } else {
+        methodName = 'swapExactTokensForTokens'
+      }
+
+      const input1 = [amountIn]
+      const input2 = [amountOutMin, path, account.address, Date.now() + 1000]
+      const input = this.WETH == this.addressFrom ? input2 : input1.concat(input2)
 
       if (this.isMetamask) {
         // Call smart contract via metamask
-        contract.methods.swapExactTokensForETH(
-          amountIn,
-          amountOutMin,
-          path,
-          account.address,
-          Date.now() + 1000
-        ).send({ from: account.address });;
+        contract.methods[methodName](...input)
+          .send(this.WETH == this.addressFrom
+            ? { from: account.address, value: amountIn }
+            : {from: account.address}
+          )
       } else {
         // Call smart contract via private key
-        const data = contract.methods.swapExactTokensForETH(
-          amountIn,
-          amountOutMin,
-          path,
-          account.address,
-          Date.now() + 1000
-        );
+        const data = contract.methods[methodName](...input);
         const params = {
           nonce: web3.utils.toHex(await web3.eth.getTransactionCount(account.address)),
-          gasLimit: web3.utils.toHex(await data.estimateGas({ from: account.address })),
+          gasLimit: web3.utils.toHex(await data.estimateGas(
+            { from: account.address, value: this.WETH == this.addressFrom ? web3.utils.toHex(amountIn) : '0x00' }
+          )),
           gasPrice: web3.utils.toHex(await web3.eth.getGasPrice()),
           to: contract._address,
           data: data.encodeABI(),
-          value: '0x00' // 0
+          value: this.WETH == this.addressFrom ? web3.utils.toHex(amountIn) : '0x00'
         }
 
         await this.signTransaction(params);
@@ -203,22 +239,22 @@ export default {
     // ============================================================
 
 
-    async getRoute () {
-      const tokenUni = await Fetcher.fetchTokenData(ChainId.RINKEBY, this.UNI)
-      const tokenWeth = await Fetcher.fetchTokenData(ChainId.RINKEBY, this.WETH)
-      const pair = await Fetcher.fetchPairData(tokenUni, tokenWeth)
-      const route = new Route([pair], tokenWeth)
+    async getRoute (addressFrom = this.UNI, addressTo = this.WETH) {
+      const tokenFrom = await Fetcher.fetchTokenData(ChainId.RINKEBY, addressFrom)
+      const tokenTo = await Fetcher.fetchTokenData(ChainId.RINKEBY, addressTo)
+      const pair = await Fetcher.fetchPairData(tokenFrom, tokenTo)
+      const route = new Route([pair], tokenTo)
       return route
     },
 
-    async getTrade () {
-      const tokenUni = await Fetcher.fetchTokenData(ChainId.RINKEBY, this.UNI)
-      const tokenWeth = await Fetcher.fetchTokenData(ChainId.RINKEBY, this.WETH)
-      const pair = await Fetcher.fetchPairData(tokenUni, tokenWeth)
-      const route = new Route([pair], tokenWeth)
+    async getTrade (addressFrom = this.UNI, addressTo = this.WETH) {
+      const tokenFrom = await Fetcher.fetchTokenData(ChainId.RINKEBY, addressFrom)
+      const tokenTo = await Fetcher.fetchTokenData(ChainId.RINKEBY, addressTo)
+      const pair = await Fetcher.fetchPairData(tokenFrom, tokenTo)
+      const route = new Route([pair], tokenTo)
 
       const amountIn = '1000000000000000000' // 1 WETH
-      const trade = new Trade(route, new TokenAmount(tokenWeth, amountIn), TradeType.EXACT_INPUT)
+      const trade = new Trade(route, new TokenAmount(tokenTo, amountIn), TradeType.EXACT_INPUT)
       return trade
     },
 
@@ -287,7 +323,10 @@ export default {
   color: #2c3e50;
   margin-top: 60px;
 }
-button {
+button, select, input[type=text] {
   margin-right: 10px;
+}
+select, input[type=text] {
+  width: 200px;
 }
 </style>
