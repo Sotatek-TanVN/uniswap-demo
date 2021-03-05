@@ -24,6 +24,7 @@
     <button @click="getFee()">
       Get Fee
     </button>
+    <TradingRoute />
   </div>
 </template>
 
@@ -31,6 +32,7 @@
 import Web3 from 'web3';
 import { ChainId, Token, Fetcher, Trade, Route, TokenAmount, TradeType, Percent } from '@uniswap/sdk'
 import IUniswapV2Router02 from './IUniswapV2Router02.json';
+import TradingRoute from './TradingRoute'
 import ERC20 from './ERC20.json';
 // account.json format
 // {
@@ -47,6 +49,9 @@ export default {
       UNI: '0x1f9840a85d5af5bf1d1762f925bdaddc4201f984',
       WETH: '0xc778417e063141139fce010982780140aa0cd5ab',
     }
+  },
+  components: {
+    TradingRoute
   },
   methods: {
 
@@ -106,6 +111,7 @@ export default {
         trader,
         Date.now() + 1000
       );
+
       const params = {
         nonce: web3.utils.toHex(await web3.eth.getTransactionCount(trader)),
         gasLimit: web3.utils.toHex(await swapData.estimateGas({ from: trader })),
@@ -133,9 +139,7 @@ export default {
 
     // Guide 3 - ==================================================
     getAddress () {
-      console.log(account.address)
-    },
-    // ============================================================
+      console.log(account.address) }, // ============================================================
 
 
     // Guide 6 - ==================================================
