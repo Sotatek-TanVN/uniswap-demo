@@ -1,11 +1,31 @@
 <template>
   <div style="margin-top: 30px">
-    <div v-if="bestTrade">
+      <p>Currency In: </p>
+      <select name="currencyIn" v-model="currencyIn" @change="onChange($event)">
+        <option value="DAI">DAI</option>
+        <option value="MKR">MKR</option>
+        <option value="USDT">USDT</option>
+        <option value="USDC">USDC</option>
+        <option value="AMPL">AMPL</option>
+      </select>
+      <p>Currency Out: </p>
+      <select name="currencyOut" v-model="currencyOut" @change="onChange($event)">
+        <option value="DAI">DAI</option>
+        <option value="MKR">MKR</option>
+        <option value="USDT">USDT</option>
+        <option value="USDC">USDC</option>
+        <option value="AMPL">AMPL</option>
+      </select>
+    <div v-if="bestTrade && !loadingRoute">
       <strong  v-for="p in bestTrade.route.path" :key="p.symbol">
         {{
           p.symbol
         }}
       </strong>
+    </div>
+    <div v-if="loadingRoute && !bestTrade">
+      Loading ...
+      Finding Route {{ currencyIn }} - {{ currencyOut }}
     </div>
   </div>
 </template>
@@ -27,6 +47,9 @@ import {
   Trade
 } from "@uniswap/sdk";
 
+import { Contract, Provider } from 'ethers-multicall';
+import { ethers } from 'ethers';
+
 
 const BETTER_TRADE_LESS_HOPS_THRESHOLD = new Percent(50, 10000);
 const MAX_HOPS = 3;
@@ -41,22 +64,6 @@ export const DAI = new Token(
   "DAI",
   "Dai Stablecoin"
 );
-
-export const DAIRinkeby = new Token(
-  ChainId.RINKEBY,
-  "0x6D7F0754FFeb405d23C51CE938289d4835bE3b14",
-  18,
-  "cDAI",
-  "Compound Dai"
-);
-
-const USDTRinkeby = new Token(
-  ChainId.RINKEBY,
-  "0xD9BA894E0097f8cC2BBc9D24D308b98e36dc6D02",
-  18,
-  "USDT",
-  "Compound USD"
-)
 
 export const USDC = new Token(
   ChainId.MAINNET,
@@ -81,7 +88,7 @@ export const COMP = new Token(
 );
 export const MKR = new Token(
   ChainId.MAINNET,
-  "0x9f8f72aa9304c8b593d555f12ef6589cc3a579a2",
+  "0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2",
   18,
   "MKR",
   "Maker"
@@ -101,6 +108,10 @@ export const WBTC = new Token(
   "Wrapped BTC"
 );
 
+const tokens = {
+  DAI, USDC, USDT, COMP, MKR, WBTC
+}
+
 const WETH_ONLY = {
   [ChainId.MAINNET]: [WETH[ChainId.MAINNET]],
   [ChainId.RINKEBY]: [WETH[ChainId.RINKEBY]],
@@ -114,7 +125,7 @@ const BASES_TO_CHECK_TRADES_AGAINST = {
   ...WETH_ONLY,
   [ChainId.MAINNET]: [
     ...WETH_ONLY[ChainId.MAINNET], 
-    USDC, USDT, COMP
+    DAI, USDC, USDT, COMP, MKR, WBTC
   ]
 };
 
@@ -142,20 +153,37 @@ const getContractInstance = (ABIContract, contractAddress) => {
   }
 };
 
+const getWeb3Instance = () => {
+  const windowObj = window;
+  const { ethereum, web3 } = windowObj;
+  if (ethereum && ethereum.isMetaMask) {
+    return new Web3(ethereum);
+  }
+  if (web3) {
+    return new Web3(web3.currentProvider);
+  }
+  return null;
+};
+
 const chainId = 1;
 
 export default {
   name: 'TradingRoute',
   data: function () {
     return {
-      bestTrade: null
+      bestTrade: null,
+      currencyIn: null,
+      currencyOut: null,
+      loadingRoute: false
     }
   },
   mounted: async function() {
-    const bestTrade = await this.findBestTradeExactIn(new TokenAmount(USDC, 1), MKR);
-    this.bestTrade = bestTrade;
   },
   methods: {
+    onChange: async function() {
+      this.bestTrade = this.currencyIn && this.currencyOut && await this.findBestTradeExactIn(new TokenAmount(tokens[this.currencyIn], 100000000000000000), tokens[this.currencyOut]);
+      this.loadingRoute = false;
+    },
     getWrappedCurrency: function (currency, chainId) {
       return chainId && currency === ETHER
         ? WETH[chainId]
@@ -165,43 +193,47 @@ export default {
     },
 
     getAllPairReserves: async function (tokens) {
-      const factoryContract = getContractInstance(
-        factoryJson,
-        factoryContractAddress
+      const factoryContract = new Contract(
+        factoryContractAddress,
+        factoryJson
       );
-      const returnReserves = [];
-      const reservesPromise = [];
 
-        for (let [tokenA, tokenB] of tokens) {
-          const tokenReserve = async () => {
-            const pairAddress = await factoryContract.methods
-              .getPair(tokenA.address, tokenB.address)
-              .call();
+      const provider = new ethers.providers.getDefaultProvider('mainnet');
 
-            if (Number(pairAddress) !== 0) {
-              const pairContract = getContractInstance(pairJson, pairAddress);
-              const reserves = await pairContract.methods.getReserves().call();
+     const ethcallProvider = new Provider(provider);
 
-              const {_reserve0, _reserve1} = reserves;
-              const [token0, token1] = tokenA.sortsBefore(tokenB)
-                ? [tokenA, tokenB]
-                : [tokenB, tokenA];
+      await ethcallProvider.init(); 
 
-              returnReserves.push(
-                new Pair(
-                  new TokenAmount(token0, _reserve0.toString()),
-                  new TokenAmount(token1, _reserve1.toString())
-                )
-              );
-            }
-          }
+      const pairsExistContractCall = tokens.map(([tokenA, tokenB]) => factoryContract.getPair(tokenA.address, tokenB.address));
 
-          reservesPromise.push(tokenReserve);
-      }
+      let pairs  = await ethcallProvider.all(pairsExistContractCall);
 
-      await throttleRequests(reservesPromise, 6); 
+      const validTokenPairs = [];
 
-      return returnReserves;
+      pairs = pairs.filter((pair, index) => { 
+        if(Number(pair) !== 0) {
+          validTokenPairs.push(tokens[index]);
+          return true;
+        } 
+      });
+
+
+      const pairsReserveContractCall = pairs.map(pair => {
+        const pairContract = new Contract(pair, pairJson);
+
+        return pairContract.getReserves();
+      })
+
+      let pairsWithReserves  = await ethcallProvider.all(pairsReserveContractCall);
+
+      return pairsWithReserves.map((pair, index) => {
+        const [tokenA, tokenB] = validTokenPairs[index];
+        const { _reserve0, _reserve1 } = pair;
+
+        const [token0, token1] = tokenA.sortsBefore(tokenB) ? [tokenA, tokenB]: [tokenB, tokenA];
+
+        return new Pair(new TokenAmount(token0, _reserve0.toString()), new TokenAmount(token1, _reserve1.toString()));
+      });
     },
 
     getPairExists: async function (currencies) {
@@ -307,44 +339,33 @@ export default {
     },
 
     findBestTradeExactIn : async function (currencyAmountIn, currencyOut) {
+      this.loadingRoute = true;
+
       const allowedPairs = await this.getCommonPairs(
         currencyAmountIn.currency,
         currencyOut
       );
-      if (allowedPairs.length > 0 && currencyAmountIn && currencyOut) {
+
+      if (currencyAmountIn && currencyOut && allowedPairs.length > 0) {
         if (!ALLOW_MULTIPLE_HOPS) {
-          return Trade.bestTradeExactIn(
-            allowedPairs,
-            currencyAmountIn,
-            currencyOut,
-            {
-              maxHops: 1,
-              maxNumResults: 1
-            }
-          )[0];
+          return (
+            Trade.bestTradeExactIn(allowedPairs, currencyAmountIn, currencyOut, { maxHops: 1, maxNumResults: 1 })[0] ??
+            null
+          )
         }
-
-        let bestTradeSoFar = null;
-
+        // search through trades with varying hops, find best trade out of them
+        let bestTradeSoFar = null
         for (let i = 1; i <= MAX_HOPS; i++) {
           const currentTrade =
-            Trade.bestTradeExactIn(allowedPairs, currencyAmountIn, currencyOut, {
-              maxHops: i,
-              maxNumResults: 1
-            })[0] ?? null;
+            Trade.bestTradeExactIn(allowedPairs, currencyAmountIn, currencyOut, { maxHops: i, maxNumResults: 1 })[0] ??
+            null
 
-          if (
-            this.isTradeBetter(
-              bestTradeSoFar,
-              currentTrade,
-              BETTER_TRADE_LESS_HOPS_THRESHOLD
-            )
-          ) {
-            bestTradeSoFar = currentTrade;
+          // if current trade is best yet, save it
+          if (this.isTradeBetter(bestTradeSoFar, currentTrade, BETTER_TRADE_LESS_HOPS_THRESHOLD)) {
+            bestTradeSoFar = currentTrade
           }
         }
-
-        return bestTradeSoFar;
+        return bestTradeSoFar
       }
     },
   }
