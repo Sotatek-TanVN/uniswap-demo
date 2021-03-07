@@ -7,6 +7,8 @@
         <option value="USDT">USDT</option>
         <option value="USDC">USDC</option>
         <option value="AMPL">AMPL</option>
+        <option value="WBTC">WBTC</option>
+        <option value="COMP">COMP</option>
       </select>
       <p>Currency Out: </p>
       <select name="currencyOut" v-model="currencyOut" @change="onChange($event)">
@@ -15,15 +17,26 @@
         <option value="USDT">USDT</option>
         <option value="USDC">USDC</option>
         <option value="AMPL">AMPL</option>
+        <option value="WBTC">WBTC</option>
+        <option value="COMP">COMP</option>
       </select>
-    <div v-if="bestTrade && !loadingRoute">
-      <strong  v-for="p in bestTrade.route.path" :key="p.symbol">
+    <div v-if="!bestTradeSoFar && !loadingRoute">
+      <strong style="margin-top: 30px; display: inline-block" v-for="p in routes" :key="p.symbol">
         {{
           p.symbol
         }}
       </strong>
+      <div style="margin-top: 30px">
+        Price impact: {{ priceImpact }}
+      </div>
+      <div>
+        Output (Estimated): {{ outputAmount }}
+      </div>
+      <div>
+        Minimum Received (Estimated): {{ minimumAmountOut }} <strong v-if="routes && routes.length > 0">{{ routes[routes.length - 1].symbol }} </strong>      
+      </div>
     </div>
-    <div v-if="loadingRoute && !bestTrade">
+    <div v-if="loadingRoute && !bestTradeSoFar">
       Loading ...
       Finding Route {{ currencyIn }} - {{ currencyOut }}
     </div>
@@ -34,7 +47,6 @@ import Web3 from "web3";
 import flatMap from "lodash.flatmap";
 import pairJson from "./pairABI.json";
 import factoryJson from "./factoryABI.json";
-import { throttleRequests } from './throttleRequest';
 import {
   Pair,
   ETHER,
@@ -43,8 +55,10 @@ import {
   WETH,
   TokenAmount,
   currencyEquals,
+  Trade,
+  JSBI,
   Percent,
-  Trade
+  Fraction
 } from "@uniswap/sdk";
 
 import { Contract, Provider } from 'ethers-multicall';
@@ -139,50 +153,41 @@ export const CUSTOM_BASES = {
   }
 };
 
-const getContractInstance = (ABIContract, contractAddress) => {
-  const windowObj = window;
-  const {ethereum} = windowObj;
-  if (ethereum && ethereum.isMetaMask) {
-    const web3Instance = new Web3(ethereum);
-    return new web3Instance.eth.Contract(ABIContract, contractAddress);
-  } else if (windowObj.web3) {
-    const web3Instance = new Web3(windowObj.web3.currentProvider);
-    return new web3Instance.eth.Contract(ABIContract, contractAddress);
-  } else {
-    return null;
-  }
-};
-
-const getWeb3Instance = () => {
-  const windowObj = window;
-  const { ethereum, web3 } = windowObj;
-  if (ethereum && ethereum.isMetaMask) {
-    return new Web3(ethereum);
-  }
-  if (web3) {
-    return new Web3(web3.currentProvider);
-  }
-  return null;
-};
-
 const chainId = 1;
+
+const BASE_FEE = new Percent(JSBI.BigInt(30), JSBI.BigInt(10000))
+const ONE_HUNDRED_PERCENT = new Percent(JSBI.BigInt(10000), JSBI.BigInt(10000))
+const INPUT_FRACTION_AFTER_FEE = ONE_HUNDRED_PERCENT.subtract(BASE_FEE)
 
 export default {
   name: 'TradingRoute',
   data: function () {
     return {
-      bestTrade: null,
+      bestTradeSoFar: null,
       currencyIn: null,
       currencyOut: null,
-      loadingRoute: false
+      loadingRoute: false,
+      priceImpact: 0,
+      outputAmount: 0,
+      minimumAmountOut: 0,
+      routes: [],
     }
   },
   mounted: async function() {
   },
   methods: {
-    onChange: async function() {
-      this.bestTrade = this.currencyIn && this.currencyOut && await this.findBestTradeExactIn(new TokenAmount(tokens[this.currencyIn], 100000000000000000), tokens[this.currencyOut]);
-      this.loadingRoute = false;
+    onChange: async function(e) {
+      if (this.currencyIn && this.currencyOut) {
+        const bestTrade = await this.findBestTradeExactIn(new TokenAmount(tokens[this.currencyIn], 2500000 * Math.pow(10, tokens[this.currencyIn].decimals)), tokens[this.currencyOut]);
+
+        this.priceImpact = bestTrade.priceImpact.toFixed();
+        this.routes = bestTrade.route.path;
+        this.outputAmount = bestTrade.outputAmount.toFixed();
+        this.minimumAmountOut = bestTrade.minimumAmountOut(new Percent("10", "10000")).toFixed();
+
+        this.loadingRoute = false;
+        
+      }
     },
     getWrappedCurrency: function (currency, chainId) {
       return chainId && currency === ETHER
@@ -198,16 +203,20 @@ export default {
         factoryJson
       );
 
-      const provider = new ethers.providers.getDefaultProvider('mainnet');
+      const infuraKey = '521064ae8d384c8fa6ddcf47f8ffc0fd';
 
-     const ethcallProvider = new Provider(provider);
+      const provider = new ethers.providers.InfuraProvider('mainnet', infuraKey);
+
+      const ethcallProvider = new Provider(provider);
 
       await ethcallProvider.init(); 
 
+      // Use for group multiple contract calls into one by using Multicall SmartContract and ethers lib
       const pairsExistContractCall = tokens.map(([tokenA, tokenB]) => factoryContract.getPair(tokenA.address, tokenB.address));
 
       let pairs  = await ethcallProvider.all(pairsExistContractCall);
 
+      // filter all the pair that doesn't has a pool
       const validTokenPairs = [];
 
       pairs = pairs.filter((pair, index) => { 
@@ -217,7 +226,7 @@ export default {
         } 
       });
 
-
+      // Multicall smart contract for getting reserves of all pairs
       const pairsReserveContractCall = pairs.map(pair => {
         const pairContract = new Contract(pair, pairJson);
 
@@ -365,6 +374,7 @@ export default {
             bestTradeSoFar = currentTrade
           }
         }
+
         return bestTradeSoFar
       }
     },
