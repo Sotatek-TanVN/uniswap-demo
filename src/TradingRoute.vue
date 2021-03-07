@@ -21,13 +21,17 @@
         <option value="COMP">COMP</option>
       </select>
     <div v-if="!bestTradeSoFar && !loadingRoute">
-      <strong style="margin-top: 30px; display: inline-block" v-for="p in routes" :key="p.symbol">
-        {{
-          p.symbol
-        }}
+      <strong style="margin-top: 30px; display: inline-block" v-for="(p, index) in routes" :key="p.symbol">
+        <span>{{p.symbol}}</span>
+        <span style="margin: 0px 10px" v-if="index !== routes.length - 1">
+           &nbsp;-
+        </span>
       </strong>
       <div style="margin-top: 30px">
-        Price impact: {{ priceImpact }}
+        Price impact: {{ priceImpact }} %
+      </div>
+      <div>
+        Liquidity Provider Fee: {{ realizedLPFee }} <strong v-if="routes && routes.length > 0">{{ routes[0].symbol }} </strong>
       </div>
       <div>
         Output (Estimated): {{ outputAmount }}
@@ -170,6 +174,7 @@ export default {
       priceImpact: 0,
       outputAmount: 0,
       minimumAmountOut: 0,
+      realizedLPFee: 0,
       routes: [],
     }
   },
@@ -178,16 +183,34 @@ export default {
   methods: {
     onChange: async function(e) {
       if (this.currencyIn && this.currencyOut) {
-        const bestTrade = await this.findBestTradeExactIn(new TokenAmount(tokens[this.currencyIn], 2500000 * Math.pow(10, tokens[this.currencyIn].decimals)), tokens[this.currencyOut]);
+        const bestTrade = await this.findBestTradeExactIn(new TokenAmount(tokens[this.currencyIn], 250000 * Math.pow(10, tokens[this.currencyIn].decimals)), tokens[this.currencyOut]);
 
         this.priceImpact = bestTrade.priceImpact.toFixed();
         this.routes = bestTrade.route.path;
         this.outputAmount = bestTrade.outputAmount.toFixed();
         this.minimumAmountOut = bestTrade.minimumAmountOut(new Percent("10", "10000")).toFixed();
 
+        const { priceImpactWithoutFee, realizedLPFee } = this.computeTradePriceBreakDown(bestTrade);
+        this.priceImpact = priceImpactWithoutFee.toFixed();
+        this.realizedLPFee = realizedLPFee.toSignificant(4);
+
         this.loadingRoute = false;
-        
       }
+    },
+    computeTradePriceBreakDown: function (trade) {
+      if (trade) {
+        const realizedLPFee = ONE_HUNDRED_PERCENT.subtract(trade.route.pairs.reduce((currentFee, pair) => currentFee.multiply(INPUT_FRACTION_AFTER_FEE), ONE_HUNDRED_PERCENT));
+        const { numerator, denominator } = trade.priceImpact.subtract(realizedLPFee);
+        const priceImpactWithoutFeePercent = new Percent(numerator, denominator);
+        const realizedLPAmount = new TokenAmount(trade.inputAmount.token, realizedLPFee.multiply(trade.inputAmount.raw).quotient);
+        
+        return { 
+          priceImpactWithoutFee: priceImpactWithoutFeePercent,
+          realizedLPFee: realizedLPAmount
+        };
+      }
+
+      return undefined;
     },
     getWrappedCurrency: function (currency, chainId) {
       return chainId && currency === ETHER
