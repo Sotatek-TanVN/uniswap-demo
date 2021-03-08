@@ -20,7 +20,7 @@
         <option value="WBTC">WBTC</option>
         <option value="COMP">COMP</option>
       </select>
-    <div v-if="!bestTradeSoFar && !loadingRoute">
+    <div v-if="!loadingRoute">
       <strong style="margin-top: 30px; display: inline-block" v-for="(p, index) in routes" :key="p.symbol">
         <span>{{p.symbol}}</span>
         <span style="margin: 0px 10px" v-if="index !== routes.length - 1">
@@ -28,7 +28,7 @@
         </span>
       </strong>
       <div style="margin-top: 30px">
-        Price impact: {{ priceImpact }} %
+        Price impact: {{ priceImpactDisplay }} %
       </div>
       <div>
         Liquidity Provider Fee: {{ realizedLPFee }} <strong v-if="routes && routes.length > 0">{{ routes[0].symbol }} </strong>
@@ -40,7 +40,7 @@
         Minimum Received (Estimated): {{ minimumAmountOut }} <strong v-if="routes && routes.length > 0">{{ routes[routes.length - 1].symbol }} </strong>      
       </div>
     </div>
-    <div v-if="loadingRoute && !bestTradeSoFar">
+    <div v-if="loadingRoute">
       Loading ...
       Finding Route {{ currencyIn }} - {{ currencyOut }}
     </div>
@@ -50,6 +50,7 @@
 import flatMap from "lodash.flatmap";
 import pairJson from "./pairABI.json";
 import factoryJson from "./factoryABI.json";
+import intermediaryTokens, { AMPL, DAI } from './IntermediaryTokens';
 import {
   Pair,
   ETHER,
@@ -67,67 +68,18 @@ import {
 import { Contract, Provider } from 'ethers-multicall';
 import { ethers } from 'ethers';
 
-
 const BETTER_TRADE_LESS_HOPS_THRESHOLD = new Percent(50, 10000);
 const MAX_HOPS = 3;
 const ALLOW_MULTIPLE_HOPS = true;
 
-const factoryContractAddress = "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f";
+const LOWEST_PRICE_IMPACT = new Percent(JSBI.BigInt(30), JSBI.BigInt(10000))
+const BASE_FEE = new Percent(JSBI.BigInt(30), JSBI.BigInt(10000))
+const ONE_HUNDRED_PERCENT = new Percent(JSBI.BigInt(10000), JSBI.BigInt(10000))
+const INPUT_FRACTION_AFTER_FEE = ONE_HUNDRED_PERCENT.subtract(BASE_FEE)
 
-export const DAI = new Token(
-  ChainId.MAINNET,
-  "0x6B175474E89094C44Da98b954EedeAC495271d0F",
-  18,
-  "DAI",
-  "Dai Stablecoin"
-);
+const chainId = 1;
 
-export const USDC = new Token(
-  ChainId.MAINNET,
-  "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-  6,
-  "USDC",
-  "USD//C"
-);
-export const USDT = new Token(
-  ChainId.MAINNET,
-  "0xdac17f958d2ee523a2206206994597c13d831ec7",
-  6,
-  "USDT",
-  "Tether USD"
-);
-export const COMP = new Token(
-  ChainId.MAINNET,
-  "0xc00e94Cb662C3520282E6f5717214004A7f26888",
-  18,
-  "COMP",
-  "Compound"
-);
-export const MKR = new Token(
-  ChainId.MAINNET,
-  "0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2",
-  18,
-  "MKR",
-  "Maker"
-);
-export const AMPL = new Token(
-  ChainId.MAINNET,
-  "0xD46bA6D942050d489DBd938a2C909A5d5039A161",
-  9,
-  "AMPL",
-  "Ampleforth"
-);
-export const WBTC = new Token(
-  ChainId.MAINNET,
-  "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
-  8,
-  "WBTC",
-  "Wrapped BTC"
-);
-
-const tokens = {
-  DAI, USDC, USDT, COMP, MKR, WBTC
-}
+const FACTORY_CONTRACT_ADDRESS = "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f";
 
 const WETH_ONLY = {
   [ChainId.MAINNET]: [WETH[ChainId.MAINNET]],
@@ -142,7 +94,7 @@ const BASES_TO_CHECK_TRADES_AGAINST = {
   ...WETH_ONLY,
   [ChainId.MAINNET]: [
     ...WETH_ONLY[ChainId.MAINNET], 
-    DAI, USDC, USDT, COMP, MKR, WBTC
+    ...Object.values(intermediaryTokens)
   ]
 };
 
@@ -156,17 +108,10 @@ export const CUSTOM_BASES = {
   }
 };
 
-const chainId = 1;
-
-const BASE_FEE = new Percent(JSBI.BigInt(30), JSBI.BigInt(10000))
-const ONE_HUNDRED_PERCENT = new Percent(JSBI.BigInt(10000), JSBI.BigInt(10000))
-const INPUT_FRACTION_AFTER_FEE = ONE_HUNDRED_PERCENT.subtract(BASE_FEE)
-
 export default {
   name: 'TradingRoute',
   data: function () {
     return {
-      bestTradeSoFar: null,
       currencyIn: null,
       currencyOut: null,
       loadingRoute: false,
@@ -175,13 +120,15 @@ export default {
       minimumAmountOut: 0,
       realizedLPFee: 0,
       routes: [],
+      fetchTradeInterval: 0,
+      priceImpactDisplay: 0
     }
   },
   mounted: async function() {
   },
   methods: {
     fetchToShowBestTrade: async function() {
-      const bestTrade = await this.findBestTradeExactIn(new TokenAmount(tokens[this.currencyIn], 250000 * (10 ** tokens[this.currencyIn].decimals)), tokens[this.currencyOut]);
+      const bestTrade = await this.findBestTradeExactIn(new TokenAmount(intermediaryTokens[this.currencyIn], 0.2 * (10 ** intermediaryTokens[this.currencyIn].decimals)), intermediaryTokens[this.currencyOut]);
 
       this.priceImpact = bestTrade.priceImpact.toFixed();
       this.routes = bestTrade.route.path;
@@ -191,17 +138,23 @@ export default {
       const { priceImpactWithoutFee, realizedLPFee } = this.computeTradePriceBreakDown(bestTrade);
       this.priceImpact = priceImpactWithoutFee.toFixed();
       this.realizedLPFee = realizedLPFee.toSignificant(4);
+      this.priceImpactDisplay = realizedLPFee.lessThan(LOWEST_PRICE_IMPACT) ? '<0.01': priceImpactWithoutFee.toFixed();
     },
     onChange: async function(e) {
       if (this.currencyIn && this.currencyOut) {
+          if (this.fetchTradeInterval) {
+            clearInterval(this.fetchTradeInterval);
+            this.fetchTradeInterval = null;
+          }
+
           this.loadingRoute = true;
           await this.fetchToShowBestTrade();
           this.loadingRoute = false;
 
-          setInterval(async () => {
-            await this.fetchToShowBestTrade();
-          }, 12000);
-
+          // Fetch estimate fee and slipppage again after 13 seconds to help user achieve best trade
+          this.fetchTradeInterval = setInterval(() => {
+            this.fetchToShowBestTrade();
+          }, 13000);
       }
     },
     computeTradePriceBreakDown: function (trade) {
@@ -229,11 +182,11 @@ export default {
 
     getAllPairReserves: async function (tokens) {
       const factoryContract = new Contract(
-        factoryContractAddress,
+        FACTORY_CONTRACT_ADDRESS,
         factoryJson
       );
 
-      const infuraKey = '521064ae8d384c8fa6ddcf47f8ffc0fd';
+      const infuraKey = 'd0151169c69948a884ef91d59c96c1d9';
 
       const provider = new ethers.providers.InfuraProvider('mainnet', infuraKey);
 
