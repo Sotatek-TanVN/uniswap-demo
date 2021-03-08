@@ -45,6 +45,7 @@
       Get Fee
     </button>
     <TradingRoute />
+    <ListTokens />
   </div>
 </template>
 
@@ -54,6 +55,7 @@ import { ChainId, Fetcher, Trade, Route, TokenAmount, TradeType, Percent, WETH a
 import DEFAULT_TOKEN_LIST from './rinkebyToken.json'
 import IUniswapV2Router02 from './IUniswapV2Router02.json';
 import TradingRoute from './TradingRoute'
+import ListTokens from './ListTokens'
 import ERC20 from './ERC20.json';
 import account from '../account.json';
 const Tx = require('ethereumjs-tx');
@@ -75,7 +77,8 @@ export default {
     }
   },
   components: {
-    TradingRoute
+    TradingRoute,
+    ListTokens
   },
   watch: {
     async isMetamask () {
