@@ -44,6 +44,7 @@
     <button @click="getFee()">
       Get Fee
     </button>
+    <TradingRoute />
   </div>
 </template>
 
@@ -52,6 +53,7 @@ import Web3 from 'web3';
 import { ChainId, Fetcher, Trade, Route, TokenAmount, TradeType, Percent, WETH as weth } from '@uniswap/sdk'
 import DEFAULT_TOKEN_LIST from './rinkebyToken.json'
 import IUniswapV2Router02 from './IUniswapV2Router02.json';
+import TradingRoute from './TradingRoute'
 import ERC20 from './ERC20.json';
 import account from '../account.json';
 const Tx = require('ethereumjs-tx');
@@ -71,6 +73,9 @@ export default {
       numberFrom: '',
       numberTo: '',
     }
+  },
+  components: {
+    TradingRoute
   },
   watch: {
     async isMetamask () {
@@ -200,9 +205,7 @@ export default {
 
     // Guide 3 - ==================================================
     getAddress () {
-      console.log(account.address)
-    },
-    // ============================================================
+      console.log(account.address) }, // ============================================================
 
 
     // Guide 6 - ==================================================
