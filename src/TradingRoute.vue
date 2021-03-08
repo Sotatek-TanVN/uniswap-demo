@@ -34,7 +34,7 @@
         Liquidity Provider Fee: {{ realizedLPFee }} <strong v-if="routes && routes.length > 0">{{ routes[0].symbol }} </strong>
       </div>
       <div>
-        Output (Estimated): {{ outputAmount }}
+        Output (Estimated): {{ outputAmount }} <strong v-if="routes && routes.length > 0">{{ routes[routes.length - 1].symbol }} </strong>
       </div>
       <div>
         Minimum Received (Estimated): {{ minimumAmountOut }} <strong v-if="routes && routes.length > 0">{{ routes[routes.length - 1].symbol }} </strong>      
@@ -47,7 +47,6 @@
   </div>
 </template>
 <script>
-import Web3 from "web3";
 import flatMap from "lodash.flatmap";
 import pairJson from "./pairABI.json";
 import factoryJson from "./factoryABI.json";
@@ -181,20 +180,28 @@ export default {
   mounted: async function() {
   },
   methods: {
+    fetchToShowBestTrade: async function() {
+      const bestTrade = await this.findBestTradeExactIn(new TokenAmount(tokens[this.currencyIn], 250000 * (10 ** tokens[this.currencyIn].decimals)), tokens[this.currencyOut]);
+
+      this.priceImpact = bestTrade.priceImpact.toFixed();
+      this.routes = bestTrade.route.path;
+      this.outputAmount = bestTrade.outputAmount.toFixed();
+      this.minimumAmountOut = bestTrade.minimumAmountOut(new Percent("10", "10000")).toFixed();
+
+      const { priceImpactWithoutFee, realizedLPFee } = this.computeTradePriceBreakDown(bestTrade);
+      this.priceImpact = priceImpactWithoutFee.toFixed();
+      this.realizedLPFee = realizedLPFee.toSignificant(4);
+    },
     onChange: async function(e) {
       if (this.currencyIn && this.currencyOut) {
-        const bestTrade = await this.findBestTradeExactIn(new TokenAmount(tokens[this.currencyIn], 250000 * Math.pow(10, tokens[this.currencyIn].decimals)), tokens[this.currencyOut]);
+          this.loadingRoute = true;
+          await this.fetchToShowBestTrade();
+          this.loadingRoute = false;
 
-        this.priceImpact = bestTrade.priceImpact.toFixed();
-        this.routes = bestTrade.route.path;
-        this.outputAmount = bestTrade.outputAmount.toFixed();
-        this.minimumAmountOut = bestTrade.minimumAmountOut(new Percent("10", "10000")).toFixed();
+          setInterval(async () => {
+            await this.fetchToShowBestTrade();
+          }, 12000);
 
-        const { priceImpactWithoutFee, realizedLPFee } = this.computeTradePriceBreakDown(bestTrade);
-        this.priceImpact = priceImpactWithoutFee.toFixed();
-        this.realizedLPFee = realizedLPFee.toSignificant(4);
-
-        this.loadingRoute = false;
       }
     },
     computeTradePriceBreakDown: function (trade) {
@@ -371,8 +378,6 @@ export default {
     },
 
     findBestTradeExactIn : async function (currencyAmountIn, currencyOut) {
-      this.loadingRoute = true;
-
       const allowedPairs = await this.getCommonPairs(
         currencyAmountIn.currency,
         currencyOut
