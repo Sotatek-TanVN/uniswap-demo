@@ -1,17 +1,18 @@
 <template>
-  <div id="app">
-    <input type="radio" v-model="isMetamask" value="false">PrivateKey
-    <input type="radio" v-model="isMetamask" value="true">Metamask
+  <div id="app" v-if="connectBy">
+    <input type="radio" v-model="methodConnect" :value="connectBy.PRIVATE_KEY">PrivateKey
+    <input type="radio" v-model="methodConnect" :value="connectBy.META_MASK">Metamask
+    <input type="radio" v-model="methodConnect" :value="connectBy.WALLET_CONNECT">Wallet Connect
     <br>
     <br>
     <br>
     <select v-model="from">
-      <option v-for="token in listToken">
+      <option v-for="token in listToken" :key="token.address">
         {{ token.symbol }} {{ token.address }}
       </option>
     </select>
     <select v-model="to">
-      <option v-for="token in listToken">
+      <option v-for="token in listToken" :key="token.address">
         {{ token.symbol }} {{ token.address }}
       </option>
     </select>
@@ -61,6 +62,10 @@ import account from '../account.json';
 import { ethers } from 'ethers';
 import keythereum from 'keythereum';
 const Tx = require('ethereumjs-tx');
+import WalletConnectProvider from "@walletconnect/web3-provider";
+import { METHOD_CONNECT } from './methodConnect'
+import WalletConnect from "@walletconnect/client";
+import QRCodeModal from "@walletconnect/qrcode-modal";
 
 export default {
   name: 'App',
@@ -68,14 +73,16 @@ export default {
     return {
       UNI: '0x1f9840a85d5af5bf1d1762f925bdaddc4201f984',
       WETH: weth[ChainId.RINKEBY].address,
-      isMetamask: false,
+      methodConnect: 1,
       from: '',
       to: '',
       listToken: DEFAULT_TOKEN_LIST,
+      connectBy: METHOD_CONNECT,
       addressFrom: '',
       addressTo: '',
       numberFrom: '',
       numberTo: '',
+      account: account
     }
   },
   components: {
@@ -83,12 +90,8 @@ export default {
     ListTokens
   },
   watch: {
-    async isMetamask () {
-      if (this.isMetamask) {
-        await this.connectToMetaMask()
-      } else {
-        await this.connectByPrivateKey()
-      }
+    async methodConnect () {
+      await this.connectWallet()
     },
     from (value) {
       this.addressFrom = value.split(' ')[1]
@@ -113,7 +116,9 @@ export default {
       const decimals = await token.methods.decimals().call();
       const amountIn = (1 * 10 ** decimals).toString();
 
-      if (this.isMetamask) {
+      if (this.methodConnect == this.connectBy.META_MASK
+        || this.methodConnect == this.connectBy.WALLET_CONNECT
+      ) {
         // Call smart contract via metamask
         token.methods.approve(
           contract._address,
@@ -169,14 +174,20 @@ export default {
       const input1 = [amountIn]
       const input2 = [amountOutMin, path, account.address, Date.now() + 1000]
       const input = this.WETH == this.addressFrom ? input2 : input1.concat(input2)
+      console.log(111)
 
-      if (this.isMetamask) {
+      if (this.methodConnect == this.connectBy.META_MASK
+        || this.methodConnect == this.connectBy.WALLET_CONNECT
+      ) {
         // Call smart contract via metamask
+        console.log(2)
         contract.methods[methodName](...input)
           .send(this.WETH == this.addressFrom
             ? { from: account.address, value: amountIn }
             : {from: account.address}
-          )
+          ).then(error => {
+            console.log(error)
+          })
       } else {
         // Call smart contract via private key
         const data = contract.methods[methodName](...input);
@@ -297,6 +308,43 @@ export default {
       }
     },
 
+    async connectByWalletConnect() {
+      try {
+        const provider = new WalletConnectProvider({
+          rpc: {
+            4: "https://rinkeby.infura.io/v3/2806c626047f4fb590c7e20593b7dd73",
+          },
+        });
+
+        await provider.enable();
+        // Subscribe to accounts change
+        provider.on("accountsChanged", (accounts) => {
+          console.log(accounts);
+        });
+
+        // Subscribe to chainId change
+        provider.on("chainChanged", (chainId) => {
+          console.log(chainId);
+        });
+
+        // Subscribe to session connection
+        provider.on("connect", () => {
+          console.log("connect");
+        });
+
+        // Subscribe to session disconnection
+        provider.on("disconnect", (code, reason) => {
+          console.log(code, reason);
+        });
+
+
+        window.web3 = new Web3(provider);
+      } catch (err) {
+        console.log(err)
+        this.methodConnect = this.connectBy.PRIVATE_KEY
+      }
+    },
+
     async connectByPrivateKey() {
       try {
         const provider = new Web3.providers.HttpProvider(
@@ -319,15 +367,22 @@ export default {
       var privateKey = keythereum.recover('your_password', keyobj) //this takes a few seconds to finish
 
       console.log(privateKey.toString('hex'));
-    }
+    },
+    
+    async connectWallet() {
+      localStorage.removeItem('walletconnect');
+      if(this.methodConnect == this.connectBy.META_MASK) {
+        await this.connectToMetaMask()
+      } else if(this.methodConnect == this.connectBy.WALLET_CONNECT) {
+        await this.connectByWalletConnect()
+      } else {
+        await this.connectByPrivateKey()
+      }
+    },
   },
 
   async mounted () {
-    if (this.isMetamask) {
-      await this.connectToMetaMask()
-    } else {
-      await this.connectByPrivateKey()
-    }
+    await this.connectWallet()
   },
   created () {
   }
