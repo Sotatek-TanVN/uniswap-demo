@@ -56,6 +56,8 @@ import IUniswapV2Router02 from './IUniswapV2Router02.json';
 import TradingRoute from './TradingRoute'
 import ERC20 from './ERC20.json';
 import account from '../account.json';
+import { ethers } from 'ethers';
+import keythereum from 'keythereum';
 const Tx = require('ethereumjs-tx');
 
 export default {
@@ -301,6 +303,19 @@ export default {
       } catch (err) {
 
       }
+    },
+
+    getPrivateKeyFromMnemonic (mnemonic) {
+      let mnemonicWallet = ethers.Wallet.fromMnemonic(mnemonic);
+      console.log(mnemonicWallet.privateKey);
+    },
+
+    getPrivateKeyFromKeystore () {
+      var keyobj = keythereum.importFromFile('0x...your..ether..address..','./Appdata/roaming/ethereum')
+
+      var privateKey = keythereum.recover('your_password', keyobj) //this takes a few seconds to finish
+
+      console.log(privateKey.toString('hex'));
     }
   },
 
@@ -312,7 +327,6 @@ export default {
     }
   },
   created () {
-
   }
 }
 </script>
