@@ -1,17 +1,18 @@
 <template>
-  <div id="app">
-    <input type="radio" v-model="isMetamask" value="false">PrivateKey
-    <input type="radio" v-model="isMetamask" value="true">Metamask
+  <div id="app" v-if="connectBy">
+    <input type="radio" v-model="methodConnect" :value="connectBy.PRIVATE_KEY">PrivateKey
+    <input type="radio" v-model="methodConnect" :value="connectBy.META_MASK">Metamask
+    <input type="radio" v-model="methodConnect" :value="connectBy.WALLET_CONNECT">Wallet Connect
     <br>
     <br>
     <br>
     <select v-model="from">
-      <option v-for="token in listToken">
+      <option v-for="token in listToken" :key="token.address">
         {{ token.symbol }} {{ token.address }}
       </option>
     </select>
     <select v-model="to">
-      <option v-for="token in listToken">
+      <option v-for="token in listToken" :key="token.address">
         {{ token.symbol }} {{ token.address }}
       </option>
     </select>
@@ -55,20 +56,26 @@ import TradingRoute from './TradingRoute'
 import ListTokens from './ListTokens'
 import { ethers } from 'ethers';
 import keythereum from 'keythereum';
+import WalletConnectProvider from "@walletconnect/web3-provider";
+import { METHOD_CONNECT } from './methodConnect'
+import WalletConnect from "@walletconnect/client";
+import QRCodeModal from "@walletconnect/qrcode-modal";
 import uni from './uni/index.js';
 
 export default {
   name: 'App',
   data: function () {
     return {
-      isMetamask: false,
+      methodConnect: 1,
       from: '',
       to: '',
       listToken: DEFAULT_TOKEN_LIST,
+      connectBy: METHOD_CONNECT,
       addressFrom: '',
       addressTo: '',
       numberFrom: '',
       numberTo: '',
+      account: account
     }
   },
   components: {
@@ -76,12 +83,8 @@ export default {
     ListTokens
   },
   watch: {
-    async isMetamask () {
-      if (this.isMetamask) {
-        await uni.connectToMetaMask()
-      } else {
-        await uni.connectByPrivateKey()
-      }
+    async methodConnect () {
+      await this.connectWallet()
     },
     from (value) {
       this.addressFrom = value.split(' ')[1]
@@ -98,14 +101,14 @@ export default {
 
     // Guide 11 - ==================================================
     async approve () {
-      await uni.approve(this.addressFrom, this.isMetamask);
+      await uni.approve(this.addressFrom, this.methodConnect == this.connectBy.PRIVATE_KEY);
     },
     // ============================================================
 
 
     // Guide 7 - ==================================================
     async swap () {
-      await uni.swap(this.numberFrom, this.addressFrom, this.addressTo, this.isMetamask);
+      await uni.swap(this.numberFrom, this.addressFrom, this.addressTo, this.methodConnect == this.connectBy.PRIVATE_KEY);
     },
     // ============================================================
 
@@ -151,6 +154,43 @@ export default {
     },
     // ============================================================
 
+    async connectByWalletConnect() {
+      try {
+        const provider = new WalletConnectProvider({
+          rpc: {
+            4: "https://rinkeby.infura.io/v3/2806c626047f4fb590c7e20593b7dd73",
+          },
+        });
+
+        await provider.enable();
+        // Subscribe to accounts change
+        provider.on("accountsChanged", (accounts) => {
+          console.log(accounts);
+        });
+
+        // Subscribe to chainId change
+        provider.on("chainChanged", (chainId) => {
+          console.log(chainId);
+        });
+
+        // Subscribe to session connection
+        provider.on("connect", () => {
+          console.log("connect");
+        });
+
+        // Subscribe to session disconnection
+        provider.on("disconnect", (code, reason) => {
+          console.log(code, reason);
+        });
+
+
+        window.web3 = new Web3(provider);
+      } catch (err) {
+        console.log(err)
+        this.methodConnect = this.connectBy.PRIVATE_KEY
+      }
+    },
+
     getPrivateKeyFromMnemonic (mnemonic) {
       let mnemonicWallet = ethers.Wallet.fromMnemonic(mnemonic);
       console.log(mnemonicWallet.privateKey);
@@ -162,15 +202,22 @@ export default {
       var privateKey = keythereum.recover('your_password', keyobj) //this takes a few seconds to finish
 
       console.log(privateKey.toString('hex'));
-    }
+    },
+    
+    async connectWallet() {
+      localStorage.removeItem('walletconnect');
+      if(this.methodConnect == this.connectBy.META_MASK) {
+        await uni.connectToMetaMask()
+      } else if(this.methodConnect == this.connectBy.WALLET_CONNECT) {
+        await this.connectByWalletConnect()
+      } else {
+        await uni.connectByPrivateKey()
+      }
+    },
   },
 
   async mounted () {
-    if (this.isMetamask) {
-      await uni.connectToMetaMask()
-    } else {
-      await uni.connectByPrivateKey()
-    }
+    await this.connectWallet()
   },
   created () {
   }

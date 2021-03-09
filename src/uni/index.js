@@ -45,7 +45,7 @@ const uni = {
     })
   },
 
-  async approve(addressFrom, isMetamask) {
+  async approve(addressFrom, isPrivateKey) {
     let web3 = window.web3;
 
     const contract = this.getContractInstance(web3);
@@ -54,7 +54,7 @@ const uni = {
     const decimals = await token.methods.decimals().call();
     const amountIn = (1 * 10 ** decimals).toString();
 
-    if (isMetamask) {
+    if (!isPrivateKey) {
       // Call smart contract via metamask
       token.methods.approve(
         contract._address,
@@ -84,7 +84,7 @@ const uni = {
 
 
   // Guide 7 - ==================================================
-  async swap(numberFrom, addressFrom, addressTo, isMetamask) {
+  async swap(numberFrom, addressFrom, addressTo, isPrivateKey) {
     let web3 = window.web3;
 
     const contract = this.getContractInstance(web3);
@@ -110,7 +110,7 @@ const uni = {
     const input2 = [amountOutMin, path, this.accAddress, Date.now() + 1000]
     const input = this.WETH == addressFrom ? input2 : input1.concat(input2)
 
-    if (isMetamask) {
+    if (!isPrivateKey) {
       // Call smart contract via metamask
       contract.methods[methodName](...input)
         .send(this.WETH == addressFrom
