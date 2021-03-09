@@ -58,9 +58,8 @@ import { ethers } from 'ethers';
 import keythereum from 'keythereum';
 import WalletConnectProvider from "@walletconnect/web3-provider";
 import { METHOD_CONNECT } from './methodConnect'
-import WalletConnect from "@walletconnect/client";
-import QRCodeModal from "@walletconnect/qrcode-modal";
 import uni from './uni/index.js';
+import Web3 from 'web3'
 
 export default {
   name: 'App',
