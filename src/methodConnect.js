@@ -1,0 +1,5 @@
+export const METHOD_CONNECT = {
+  PRIVATE_KEY: 1,
+  META_MASK: 2,
+  WALLET_CONNECT: 3
+}
