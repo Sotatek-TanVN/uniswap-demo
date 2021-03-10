@@ -54,12 +54,8 @@
 import DEFAULT_TOKEN_LIST from './rinkebyToken.json'
 import TradingRoute from './TradingRoute'
 import ListTokens from './ListTokens'
-import { ethers } from 'ethers';
-import keythereum from 'keythereum';
-import WalletConnectProvider from "@walletconnect/web3-provider";
 import { METHOD_CONNECT } from './methodConnect'
 import uni from './uni/index.js';
-import Web3 from 'web3'
 
 export default {
   name: 'App',
@@ -74,7 +70,6 @@ export default {
       addressTo: '',
       numberFrom: '',
       numberTo: '',
-      // account: account
     }
   },
   components: {
@@ -97,118 +92,44 @@ export default {
     },
   },
   methods: {
-
-    // Guide 11 - ==================================================
     async approve () {
       await uni.approve(this.addressFrom, this.methodConnect == this.connectBy.PRIVATE_KEY);
     },
-    // ============================================================
 
-
-    // Guide 7 - ==================================================
     async swap () {
       await uni.swap(this.numberFrom, this.addressFrom, this.addressTo, this.methodConnect == this.connectBy.PRIVATE_KEY);
     },
-    // ============================================================
 
-
-    // Guide 1 2 4 5 - ==================================================
     async getBalance () {
       await uni.getBalance(this.addressFrom, this.addressTo);
     },
-    // ============================================================
 
-
-    // Guide 3 - ==================================================
     getAddress () {
       uni.getAddress();
     },
-    // ============================================================
 
-
-    // Guide 6 - ==================================================
     async getPrice () {
       await uni.getPrice(this.addressFrom, this.addressTo);
     },
-    // ============================================================
 
-
-    // Guide 8 - ==================================================
     async getMinimumReceived () {
       await uni.getMinimumReceived(this.addressFrom, this.addressTo);
     },
-    // ============================================================
 
-
-    // Guide 9 - ==================================================
     async getPriceImpact () {
       await uni.getPriceImpact(this.addressFrom, this.addressTo);
     },
-    // ============================================================
 
-
-    // Guide 10 - ==================================================
     getFee () {
       uni.getFee();
     },
-    // ============================================================
 
-    async connectByWalletConnect() {
-      try {
-        const provider = new WalletConnectProvider({
-          rpc: {
-            4: "https://rinkeby.infura.io/v3/2806c626047f4fb590c7e20593b7dd73",
-          },
-        });
-
-        await provider.enable();
-        // Subscribe to accounts change
-        provider.on("accountsChanged", (accounts) => {
-          console.log(accounts);
-        });
-
-        // Subscribe to chainId change
-        provider.on("chainChanged", (chainId) => {
-          console.log(chainId);
-        });
-
-        // Subscribe to session connection
-        provider.on("connect", () => {
-          console.log("connect");
-        });
-
-        // Subscribe to session disconnection
-        provider.on("disconnect", (code, reason) => {
-          console.log(code, reason);
-        });
-
-
-        window.web3 = new Web3(provider);
-      } catch (err) {
-        console.log(err)
-        this.methodConnect = this.connectBy.PRIVATE_KEY
-      }
-    },
-
-    getPrivateKeyFromMnemonic (mnemonic) {
-      let mnemonicWallet = ethers.Wallet.fromMnemonic(mnemonic);
-      console.log(mnemonicWallet.privateKey);
-    },
-
-    getPrivateKeyFromKeystore () {
-      var keyobj = keythereum.importFromFile('0x...your..ether..address..','./Appdata/roaming/ethereum')
-
-      var privateKey = keythereum.recover('your_password', keyobj) //this takes a few seconds to finish
-
-      console.log(privateKey.toString('hex'));
-    },
-    
     async connectWallet() {
       localStorage.removeItem('walletconnect');
       if(this.methodConnect == this.connectBy.META_MASK) {
         await uni.connectToMetaMask()
       } else if(this.methodConnect == this.connectBy.WALLET_CONNECT) {
-        await this.connectByWalletConnect()
+        await uni.connectByWalletConnect()
       } else {
         await uni.connectByPrivateKey()
       }
@@ -218,6 +139,7 @@ export default {
   async mounted () {
     await this.connectWallet()
   },
+
   created () {
   }
 }
