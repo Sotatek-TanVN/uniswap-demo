@@ -1,11 +1,7 @@
 import Web3 from 'web3';
 import { 
-  ChainId,
-  Fetcher,
   Trade,
-  Route,
   TokenAmount,
-  TradeType,
   Percent,
   WETH as weth,
   Pair,

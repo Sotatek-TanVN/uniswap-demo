@@ -126,6 +126,7 @@
         }
       });
 
+console.log(tokenListByUrls)
       this.tokenListByUrls = tokenListByUrls;
     },
     methods: {

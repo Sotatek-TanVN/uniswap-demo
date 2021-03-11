@@ -176,10 +176,6 @@ export default {
       await uni.getBalance(this.currencyIn.address, this.currencyOut.address);
     },
 
-    getAddress () {
-      uni.getAddress();
-    },
-
     async connectWallet() {
       localStorage.removeItem('walletconnect');
       if(this.methodConnect == this.connectBy.META_MASK) {
