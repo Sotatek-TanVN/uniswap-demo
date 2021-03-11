@@ -33,6 +33,9 @@
       <button @click="swap()">
         Swap
       </button>
+      <button @click="getTokenTransactions()">
+        Get Transactions
+      </button>
 
       <div v-if="!loadingRoute">
         <strong style="margin-top: 30px; display: inline-block" v-for="(p, index) in routes" :key="p.symbol">
@@ -77,6 +80,11 @@ import ListTokens from './ListTokens'
 import { METHOD_CONNECT } from './methodConnect'
 import uni from './uni/index.js';
 import { TokenAmount, Token } from "@uniswap/sdk";
+
+import { ApolloClient } from 'apollo-client'
+import { InMemoryCache } from 'apollo-cache-inmemory'
+import { HttpLink } from 'apollo-link-http'
+import { FILTERED_TRANSACTIONS } from './transactionQuery'
 
 export default {
   name: 'App',
@@ -236,10 +244,39 @@ export default {
         await uni.connectByPrivateKey()
       }
     },
+
+    connectGrapthQL() {
+      window.client = new ApolloClient({
+        link: new HttpLink({
+          uri: 'http://172.16.1.204:8180/subgraphs/name/davekaj/uniswap',
+        }),
+        cache: new InMemoryCache(),
+        shouldBatch: true,
+      })
+    }, 
+
+    async getTokenTransactions(allPairsFormatted) {
+      const transactions = {}
+      try {
+        let result = await window.client.query({
+          query: FILTERED_TRANSACTIONS,
+          variables: {
+            allPairs: allPairsFormatted,
+          },
+          fetchPolicy: 'cache-first',
+        })
+        transactions.swaps = result.data.swaps
+        console.log(JSON.stringify(transactions))
+      } catch (e) {
+        console.log(e)
+      }
+      return transactions
+    }
   },
 
   async mounted () {
     await this.connectWallet()
+    this.connectGrapthQL()
   },
 
   created () {
