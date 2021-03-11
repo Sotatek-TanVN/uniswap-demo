@@ -247,29 +247,29 @@ const uni = {
   // ============================================================
 
 
-  // Guide 8 - ==================================================
-  async getMinimumReceived (addressFrom, addressTo) {
-    const trade = await this.getTrade(addressFrom, addressTo);
-    const slippageTolerance = new Percent('50', '10000') // 50 bips, or 0.50%
-    console.log(trade.minimumAmountOut(slippageTolerance).toFixed())
-  },
-  // ============================================================
+  // // Guide 8 - ==================================================
+  // async getMinimumReceived (addressFrom, addressTo) {
+  //   const trade = await this.getTrade(addressFrom, addressTo);
+  //   const slippageTolerance = new Percent('50', '10000') // 50 bips, or 0.50%
+  //   console.log(trade.minimumAmountOut(slippageTolerance).toFixed())
+  // },
+  // // ============================================================
 
 
-  // Guide 9 - ==================================================
-  async getPriceImpact (addressFrom, addressTo) {
-    const trade = await this.getTrade(addressFrom, addressTo);
-    console.log(trade.priceImpact.toFixed())
-  },
-  // ============================================================
+  // // Guide 9 - ==================================================
+  // async getPriceImpact (addressFrom, addressTo) {
+  //   const trade = await this.getTrade(addressFrom, addressTo);
+  //   console.log(trade.priceImpact.toFixed())
+  // },
+  // // ============================================================
 
 
-  // Guide 10 - ==================================================
-  getFee() {
-    const amount = 1;
-    console.log(amount * 0.003)
-  },
-  // ============================================================
+  // // Guide 10 - ==================================================
+  // getFee() {
+  //   const amount = 1;
+  //   console.log(amount * 0.003)
+  // },
+  // // ============================================================
 
 
   async getRoute (addressFrom, addressTo) {
