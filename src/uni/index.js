@@ -233,7 +233,7 @@ const uni = {
     console.log(this.accAddress)
   }, // ============================================================
 
-  async fetchToShowBestTrade(currencyAmountIn, currencyOut) {
+  async fetchToShowBestTradeExactIn(currencyAmountIn, currencyOut) {
     const bestTrade = await this.findBestTradeExactIn(currencyAmountIn, currencyOut);
 
     const routes = bestTrade.route.path;
@@ -251,6 +251,32 @@ const uni = {
       routes,
       outputAmount,
       minimumAmountOut,
+      priceImpact,
+      realizedLPFee: _realizedLPFee,
+      priceImpactDisplay,
+      midPrice,
+      midPriceInvert
+    }
+  },
+
+  async fetchToShowBestTradeExactOut(currencyIn, currencyAmountOut) {
+    const bestTrade = await this.findBestTradeExactOut(currencyIn, currencyAmountOut);
+
+    const routes = bestTrade.route.path;
+    const inputAmount = bestTrade.inputAmount.toFixed();
+    const midPrice = bestTrade.executionPrice.toFixed();
+    const midPriceInvert = bestTrade.executionPrice.invert().toFixed();
+    const maximumAmountIn = bestTrade.maximumAmountIn(new Percent("10", "10000")).toFixed();
+
+    const { priceImpactWithoutFee, realizedLPFee } = this.computeTradePriceBreakDown(bestTrade);
+    const priceImpact = priceImpactWithoutFee.toFixed();
+    const _realizedLPFee = realizedLPFee.toSignificant(4);
+    const priceImpactDisplay = realizedLPFee.lessThan(LOWEST_PRICE_IMPACT) ? '<0.01' : priceImpact;
+
+    return {
+      routes,
+      inputAmount,
+      maximumAmountIn,
       priceImpact,
       realizedLPFee: _realizedLPFee,
       priceImpactDisplay,
@@ -293,6 +319,36 @@ const uni = {
       for (let i = 1; i <= MAX_HOPS; i++) {
         const currentTrade =
           Trade.bestTradeExactIn(allowedPairs, currencyAmountIn, currencyOut, { maxHops: i, maxNumResults: 1 })[0] ??
+          null
+
+        // if current trade is best yet, save it
+        if (this.isTradeBetter(bestTradeSoFar, currentTrade, BETTER_TRADE_LESS_HOPS_THRESHOLD)) {
+          bestTradeSoFar = currentTrade
+        }
+      }
+
+      return bestTradeSoFar
+    }
+  },
+
+  async findBestTradeExactOut(currencyIn, currencyAmountOut) {
+    const allowedPairs = await this.getCommonPairs(
+      currencyIn,
+      currencyAmountOut.currency
+    );
+
+    if (currencyIn && currencyAmountOut && allowedPairs.length > 0) {
+      if (!ALLOW_MULTIPLE_HOPS) {
+        return (
+          Trade.bestTradeExactOut(allowedPairs, currencyIn, currencyAmountOut, { maxHops: 1, maxNumResults: 1 })[0] ??
+          null
+        )
+      }
+      // search through trades with varying hops, find best trade out of them
+      let bestTradeSoFar = null
+      for (let i = 1; i <= MAX_HOPS; i++) {
+        const currentTrade =
+          Trade.bestTradeExactOut(allowedPairs, currencyIn, currencyAmountOut, { maxHops: i, maxNumResults: 1 })[0] ??
           null
 
         // if current trade is best yet, save it

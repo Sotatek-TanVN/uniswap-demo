@@ -7,7 +7,7 @@
     <div style="margin-top: 30px">
 
       <p>Currency In: </p>
-      <input type="text" v-model="inputAmount">
+      <input type="text" v-model="inputAmount" @change="onChangeInput($event)">
       <select name="currencyIn" v-model="currencyIn" @change="onChange($event)">
         <option v-for="token in listToken" :value="token" :key="token.address">
           {{ token.symbol }} {{ token.address }}
@@ -15,7 +15,7 @@
       </select>
 
       <p>Currency Out: </p>
-      <input disabled type="text" v-model="outputAmount">
+      <input type="text" v-model="outputAmount" @change="onChangeOutput($event)">
       <select name="currencyOut" v-model="currencyOut" @change="onChange($event)">
         <option v-for="token in listToken" :value="token" :key="token.address">
           {{ token.symbol }} {{ token.address }}
@@ -95,12 +95,15 @@ export default {
       inputAmount: 0,
       outputAmount: 0,
       minimumAmountOut: 0,
+      maximumAmountIn: 0,
       realizedLPFee: 0,
       routes: [],
       fetchTradeInterval: 0,
       priceImpactDisplay: 0,
       midPrice: 0,
       midPriceInvert: 0,
+
+      isExactInput: true,
     }
   },
   components: {
@@ -112,17 +115,39 @@ export default {
     },
   },
   methods: {
+    async onChangeInput () {
+      this.isExactInput = true
+      await this.onChange()
+    },
+
+    async onChangeOutput () {
+      this.isExactInput = false
+      await this.onChange()
+    },
+
     getParams (currency) {
       const { address, chainId, decimals, name, symbol } = currency
       return [ chainId, address, decimals, symbol, name ]
     },
 
-    fetchToShowBestTrade: async function() {
-      const paramsIn = this.getParams(this.currencyIn)
+    getToken (currencyIn, currencyOut) {
+      const paramsIn = this.getParams(currencyIn)
       const tokenIn = new Token(...paramsIn);
-      const paramsOut = this.getParams(this.currencyOut)
+      const paramsOut = this.getParams(currencyOut)
       const tokenOut = new Token(...paramsOut);
+      return { tokenIn, tokenOut }
+    },
 
+    async fetchToShowBestTrade () {
+      if (this.isExactInput) {
+        await this.fetchToShowBestTradeExactIn()
+      } else {
+        await this.fetchToShowBestTradeExactOut()
+      }
+    },
+
+    async fetchToShowBestTradeExactIn () {
+      const { tokenIn, tokenOut } = this.getToken(this.currencyIn, this.currencyOut)
       const amountIn = this.inputAmount * (10 ** tokenIn.decimals);
 
       const { 
@@ -134,7 +159,7 @@ export default {
         priceImpactDisplay,
         midPrice,
         midPriceInvert
-      } = await uni.fetchToShowBestTrade(new TokenAmount(tokenIn, amountIn), tokenOut)
+      } = await uni.fetchToShowBestTradeExactIn(new TokenAmount(tokenIn, amountIn), tokenOut)
 
       this.routes = routes;
       this.outputAmount = outputAmount;
@@ -145,9 +170,34 @@ export default {
       this.midPrice = midPrice;
       this.midPriceInvert = midPriceInvert;
     },
+    
+    async fetchToShowBestTradeExactOut () {
+      const { tokenIn, tokenOut } = this.getToken(this.currencyIn, this.currencyOut)
+      const amountOut = this.outputAmount * (10 ** tokenOut.decimals);
+
+      const { 
+        routes,
+        inputAmount,
+        maximumAmountIn,
+        priceImpact,
+        realizedLPFee,
+        priceImpactDisplay,
+        midPrice,
+        midPriceInvert
+      } = await uni.fetchToShowBestTradeExactOut(tokenIn, new TokenAmount(tokenOut, amountOut))
+
+      this.routes = routes;
+      this.inputAmount = inputAmount;
+      this.maximumAmountIn = maximumAmountIn;
+      this.priceImpact = priceImpact;
+      this.realizedLPFee = realizedLPFee;
+      this.priceImpactDisplay = priceImpactDisplay;
+      this.midPrice = midPrice;
+      this.midPriceInvert = midPriceInvert;
+    },
 
     onChange: async function(e) {
-      if (this.currencyIn && this.currencyOut) {
+      if (this.currencyIn && this.currencyOut && (this.inputAmount || this.outputAmount)) {
         if (this.fetchTradeInterval) {
           clearInterval(this.fetchTradeInterval);
           this.fetchTradeInterval = null;
@@ -165,11 +215,11 @@ export default {
     },
 
     async approve () {
-      await uni.approve(this.currencyIn.address, this.methodConnect == this.connectBy.PRIVATE_KEY);
+      await uni.approve(this.currencyIn.address, this.methodConnect == METHOD_CONNECT.PRIVATE_KEY);
     },
 
     async swap () {
-      await uni.swap(this.inputAmount, this.currencyIn.address, this.currencyOut.address, this.methodConnect == this.connectBy.PRIVATE_KEY);
+      await uni.swap(this.inputAmount, this.currencyIn.address, this.currencyOut.address, this.methodConnect == METHOD_CONNECT.PRIVATE_KEY);
     },
 
     async getBalance () {
@@ -178,9 +228,9 @@ export default {
 
     async connectWallet() {
       localStorage.removeItem('walletconnect');
-      if(this.methodConnect == this.connectBy.META_MASK) {
+      if(this.methodConnect == METHOD_CONNECT.META_MASK) {
         await uni.connectToMetaMask()
-      } else if(this.methodConnect == this.connectBy.WALLET_CONNECT) {
+      } else if(this.methodConnect == METHOD_CONNECT.WALLET_CONNECT) {
         await uni.connectByWalletConnect()
       } else {
         await uni.connectByPrivateKey()
