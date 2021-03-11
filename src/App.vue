@@ -3,48 +3,36 @@
     <input type="radio" v-model="methodConnect" :value="connectBy.PRIVATE_KEY">PrivateKey
     <input type="radio" v-model="methodConnect" :value="connectBy.META_MASK">Metamask
     <input type="radio" v-model="methodConnect" :value="connectBy.WALLET_CONNECT">Wallet Connect
-    <br>
-    <br>
-    <br>
-    <button @click="getBalance()">
-      Show Balance
-    </button>
-    <button @click="approve()">
-      Approve
-    </button>
-    <button @click="swap()">
-      Swap
-    </button>
-    <button @click="getPrice()">
-      Get Price
-    </button>
-    <!-- <button @click="getMinimumReceived()">
-      Get Minimum Received
-    </button>
-    <button @click="getPriceImpact()">
-      Get Price Impact
-    </button>
-    <button @click="getFee()">
-      Get Fee
-    </button> -->
 
     <div style="margin-top: 30px">
 
-        <p>Currency In: </p>
-        <input type="text" v-model="inputAmount">
-        <select name="currencyIn" v-model="currencyIn" @change="onChange($event)">
-          <option v-for="token in listToken" :value="token" :key="token.address">
-            {{ token.symbol }} {{ token.address }}
-          </option>
-        </select>
+      <p>Currency In: </p>
+      <input type="text" v-model="inputAmount">
+      <select name="currencyIn" v-model="currencyIn" @change="onChange($event)">
+        <option v-for="token in listToken" :value="token" :key="token.address">
+          {{ token.symbol }} {{ token.address }}
+        </option>
+      </select>
 
-        <p>Currency Out: </p>
-        <input disabled type="text" v-model="outputAmount">
-        <select name="currencyOut" v-model="currencyOut" @change="onChange($event)">
-          <option v-for="token in listToken" :value="token" :key="token.address">
-            {{ token.symbol }} {{ token.address }}
-          </option>
-        </select>
+      <p>Currency Out: </p>
+      <input disabled type="text" v-model="outputAmount">
+      <select name="currencyOut" v-model="currencyOut" @change="onChange($event)">
+        <option v-for="token in listToken" :value="token" :key="token.address">
+          {{ token.symbol }} {{ token.address }}
+        </option>
+      </select>
+      <br>
+      <br>
+      <br>
+      <button @click="getBalance()">
+        Show Balance
+      </button>
+      <button @click="approve()">
+        Approve
+      </button>
+      <button @click="swap()">
+        Swap
+      </button>
 
       <div v-if="!loadingRoute">
         <strong style="margin-top: 30px; display: inline-block" v-for="(p, index) in routes" :key="p.symbol">
@@ -54,6 +42,12 @@
           </span>
         </strong>
         <div style="margin-top: 30px">
+          Price: {{ midPrice }} {{ currencyOut && currencyOut.symbol }} per {{ currencyIn && currencyIn.symbol }}
+        </div>
+        <div>
+          Price: {{ midPriceInvert }} {{ currencyIn && currencyIn.symbol }} per {{ currencyOut && currencyOut.symbol }}
+        </div>
+        <div>
           Price impact: {{ priceImpactDisplay }} %
         </div>
         <div>
@@ -68,7 +62,7 @@
       </div>
       <div v-if="loadingRoute">
         Loading ...
-        Finding Route {{ currencyIn.symbol }} - {{ currencyOut.symbol }}
+        Finding Route {{ currencyIn && currencyIn.symbol }} - {{ currencyOut && currencyOut.symbol }}
       </div>
     </div>
 
@@ -104,7 +98,9 @@ export default {
       realizedLPFee: 0,
       routes: [],
       fetchTradeInterval: 0,
-      priceImpactDisplay: 0
+      priceImpactDisplay: 0,
+      midPrice: 0,
+      midPriceInvert: 0,
     }
   },
   components: {
@@ -114,16 +110,6 @@ export default {
     async methodConnect () {
       await this.connectWallet()
     },
-    from (value) {
-      this.currencyIn.address = value.split(' ')[1]
-    },
-    to (value) {
-      this.currencyOut.address = value.split(' ')[1]
-    },
-    // async inputAmount (value) {
-    //   const route = await uni.getRoute(this.currencyIn.address, this.currencyOut.address)
-    //   this.numberTo = route.midPrice.invert().toFixed() * value
-    // },
   },
   methods: {
     getParams (currency) {
@@ -145,7 +131,9 @@ export default {
         minimumAmountOut,
         priceImpact,
         realizedLPFee,
-        priceImpactDisplay
+        priceImpactDisplay,
+        midPrice,
+        midPriceInvert
       } = await uni.fetchToShowBestTrade(new TokenAmount(tokenIn, amountIn), tokenOut)
 
       this.routes = routes;
@@ -154,6 +142,8 @@ export default {
       this.priceImpact = priceImpact;
       this.realizedLPFee = realizedLPFee;
       this.priceImpactDisplay = priceImpactDisplay;
+      this.midPrice = midPrice;
+      this.midPriceInvert = midPriceInvert;
     },
 
     onChange: async function(e) {
@@ -189,22 +179,6 @@ export default {
     getAddress () {
       uni.getAddress();
     },
-
-    async getPrice () {
-      await uni.getPrice(this.currencyIn.address, this.currencyOut.address);
-    },
-
-    // async getMinimumReceived () {
-    //   await uni.getMinimumReceived(this.currencyIn.address, this.currencyOut.address);
-    // },
-
-    // async getPriceImpact () {
-    //   await uni.getPriceImpact(this.currencyIn.address, this.currencyOut.address);
-    // },
-
-    // getFee () {
-    //   uni.getFee();
-    // },
 
     async connectWallet() {
       localStorage.removeItem('walletconnect');

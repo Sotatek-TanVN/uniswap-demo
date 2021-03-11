@@ -237,65 +237,13 @@ const uni = {
     console.log(this.accAddress)
   }, // ============================================================
 
-
-  // Guide 6 - ==================================================
-  async getPrice (addressFrom, addressTo) {
-    const route = await this.getRoute(addressFrom, addressTo)
-    console.log(route.midPrice.toFixed()) // 1 weth = x uni
-    console.log(route.midPrice.invert().toFixed()) // 1 uni = y weth
-  },
-  // ============================================================
-
-
-  // // Guide 8 - ==================================================
-  // async getMinimumReceived (addressFrom, addressTo) {
-  //   const trade = await this.getTrade(addressFrom, addressTo);
-  //   const slippageTolerance = new Percent('50', '10000') // 50 bips, or 0.50%
-  //   console.log(trade.minimumAmountOut(slippageTolerance).toFixed())
-  // },
-  // // ============================================================
-
-
-  // // Guide 9 - ==================================================
-  // async getPriceImpact (addressFrom, addressTo) {
-  //   const trade = await this.getTrade(addressFrom, addressTo);
-  //   console.log(trade.priceImpact.toFixed())
-  // },
-  // // ============================================================
-
-
-  // // Guide 10 - ==================================================
-  // getFee() {
-  //   const amount = 1;
-  //   console.log(amount * 0.003)
-  // },
-  // // ============================================================
-
-
-  async getRoute (addressFrom, addressTo) {
-    const tokenFrom = await Fetcher.fetchTokenData(ChainId.RINKEBY, addressFrom)
-    const tokenTo = await Fetcher.fetchTokenData(ChainId.RINKEBY, addressTo)
-    const pair = await Fetcher.fetchPairData(tokenFrom, tokenTo)
-    const route = new Route([pair], tokenTo)
-    return route
-  },
-
-  async getTrade (addressFrom, addressTo) {
-    const tokenFrom = await Fetcher.fetchTokenData(ChainId.RINKEBY, addressFrom)
-    const tokenTo = await Fetcher.fetchTokenData(ChainId.RINKEBY, addressTo)
-    const pair = await Fetcher.fetchPairData(tokenFrom, tokenTo)
-    const route = new Route([pair], tokenTo)
-
-    const amountIn = '1000000000000000000' // 1 WETH
-    const trade = new Trade(route, new TokenAmount(tokenTo, amountIn), TradeType.EXACT_INPUT)
-    return trade
-  },
-
   async fetchToShowBestTrade(currencyAmountIn, currencyOut) {
     const bestTrade = await this.findBestTradeExactIn(currencyAmountIn, currencyOut);
 
     const routes = bestTrade.route.path;
     const outputAmount = bestTrade.outputAmount.toFixed();
+    const midPrice = bestTrade.executionPrice.toFixed();
+    const midPriceInvert = bestTrade.executionPrice.invert().toFixed();
     const minimumAmountOut = bestTrade.minimumAmountOut(new Percent("10", "10000")).toFixed();
 
     const { priceImpactWithoutFee, realizedLPFee } = this.computeTradePriceBreakDown(bestTrade);
@@ -303,7 +251,16 @@ const uni = {
     const _realizedLPFee = realizedLPFee.toSignificant(4);
     const priceImpactDisplay = realizedLPFee.lessThan(LOWEST_PRICE_IMPACT) ? '<0.01' : priceImpact;
 
-    return { routes, outputAmount, minimumAmountOut, priceImpact, realizedLPFee: _realizedLPFee, priceImpactDisplay }
+    return {
+      routes,
+      outputAmount,
+      minimumAmountOut,
+      priceImpact,
+      realizedLPFee: _realizedLPFee,
+      priceImpactDisplay,
+      midPrice,
+      midPriceInvert
+    }
   },
 
   computeTradePriceBreakDown (trade) {
