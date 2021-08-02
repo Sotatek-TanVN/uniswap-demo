@@ -1,8 +1,9 @@
 <template>
-  <div id="app" v-if="connectBy">
-    <input type="radio" v-model="methodConnect" :value="connectBy.PRIVATE_KEY">PrivateKey
+  <!-- <div id="app" v-if="connectBy"> -->
+  <div id="app">
+    <!-- <input type="radio" v-model="methodConnect" :value="connectBy.PRIVATE_KEY">PrivateKey
     <input type="radio" v-model="methodConnect" :value="connectBy.META_MASK">Metamask
-    <input type="radio" v-model="methodConnect" :value="connectBy.WALLET_CONNECT">Wallet Connect
+    <input type="radio" v-model="methodConnect" :value="connectBy.WALLET_CONNECT">Wallet Connect -->
 
     <div style="margin-top: 30px">
 
@@ -81,9 +82,9 @@ import { METHOD_CONNECT } from './methodConnect'
 import uni from './uni/index.js';
 import { TokenAmount, Token } from "@uniswap/sdk";
 
-import { ApolloClient } from 'apollo-client'
-import { InMemoryCache } from 'apollo-cache-inmemory'
-import { HttpLink } from 'apollo-link-http'
+// import { ApolloClient } from 'apollo-client'
+// import { InMemoryCache } from 'apollo-cache-inmemory'
+// import { HttpLink } from 'apollo-link-http'
 import { FILTERED_TRANSACTIONS } from './transactionQuery'
 
 export default {
@@ -94,7 +95,7 @@ export default {
       from: '',
       to: '',
       listToken: DEFAULT_TOKEN_LIST,
-      connectBy: METHOD_CONNECT,
+      // connectBy: METHOD_CONNECT,
 
       currencyIn: null,
       currencyOut: null,
@@ -236,24 +237,24 @@ export default {
 
     async connectWallet() {
       localStorage.removeItem('walletconnect');
-      if(this.methodConnect == METHOD_CONNECT.META_MASK) {
-        await uni.connectToMetaMask()
-      } else if(this.methodConnect == METHOD_CONNECT.WALLET_CONNECT) {
-        await uni.connectByWalletConnect()
-      } else {
+      // if(this.methodConnect == METHOD_CONNECT.META_MASK) {
+      //   await uni.connectToMetaMask()
+      // } else if(this.methodConnect == METHOD_CONNECT.WALLET_CONNECT) {
+      //   await uni.connectByWalletConnect()
+      // } else {
         await uni.connectByPrivateKey()
-      }
+      // }
     },
 
-    connectGrapthQL() {
-      window.client = new ApolloClient({
-        link: new HttpLink({
-          uri: 'http://172.16.1.204:8180/subgraphs/name/davekaj/uniswap',
-        }),
-        cache: new InMemoryCache(),
-        shouldBatch: true,
-      })
-    }, 
+    // connectGrapthQL() {
+    //   window.client = new ApolloClient({
+    //     link: new HttpLink({
+    //       uri: 'http://172.16.1.204:8180/subgraphs/name/davekaj/uniswap',
+    //     }),
+    //     cache: new InMemoryCache(),
+    //     shouldBatch: true,
+    //   })
+    // }, 
 
     async getTokenTransactions(allPairsFormatted) {
       const transactions = {}
@@ -276,7 +277,7 @@ export default {
 
   async mounted () {
     await this.connectWallet()
-    this.connectGrapthQL()
+    // this.connectGrapthQL()
   },
 
   created () {
