@@ -65,7 +65,6 @@
 
 <script>
 import DEFAULT_TOKEN_LIST from './rinkebyToken.json'
-import { METHOD_CONNECT } from './methodConnect'
 import uni from './uni/index.js';
 import { TokenAmount, Token } from "@uniswap/sdk";
 
@@ -196,11 +195,11 @@ export default {
     },
 
     async approve () {
-      await uni.approve(this.currencyIn.address, METHOD_CONNECT.PRIVATE_KEY);
+      await uni.approve(this.currencyIn.address);
     },
 
     async swap () {
-      await uni.swap(this.inputAmount, this.currencyIn.address, this.currencyOut.address, METHOD_CONNECT.PRIVATE_KEY);
+      await uni.swap(this.inputAmount, this.currencyIn.address, this.currencyOut.address);
     },
 
     async getBalance () {

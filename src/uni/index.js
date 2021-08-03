@@ -70,7 +70,7 @@ const uni = {
     })
   },
 
-  async approve (addressFrom, isPrivateKey) {
+  async approve (addressFrom) {
     let web3 = window.web3;
 
     const contract = this.getContractInstance(web3);
@@ -79,37 +79,28 @@ const uni = {
     const decimals = await token.methods.decimals().call();
     const amountIn = (999 * 10 ** decimals).toString();
 
-    if (!isPrivateKey) {
-      // Call smart contract via metamask
-      token.methods.approve(
-        contract._address,
-        amountIn
-      ).send({ from: this.accAddress });
-    } else {
-      // Call smart contract via private key
-      const data = token.methods.approve(
-        contract._address,
-        amountIn
-      );
+    // Call smart contract via private key
+    const data = token.methods.approve(
+      contract._address,
+      amountIn
+    );
 
-      const params = {
-        nonce: web3.utils.toHex(await web3.eth.getTransactionCount(this.accAddress)),
-        gasLimit: web3.utils.toHex(await data.estimateGas({ from: this.accAddress })),
-        gasPrice: web3.utils.toHex(await web3.eth.getGasPrice()),
-        to: addressFrom,
-        data: data.encodeABI(),
-        value: '0x00' // 0
-      }
-
-      await this.signTransaction(params)
+    const params = {
+      nonce: web3.utils.toHex(await web3.eth.getTransactionCount(this.accAddress)),
+      gasLimit: web3.utils.toHex(await data.estimateGas({ from: this.accAddress })),
+      gasPrice: web3.utils.toHex(await web3.eth.getGasPrice()),
+      to: addressFrom,
+      data: data.encodeABI(),
+      value: '0x00' // 0
     }
 
+    await this.signTransaction(params)
   },
   // ============================================================
 
 
   // Guide 7 - ==================================================
-  async swap (numberFrom, addressFrom, addressTo, isPrivateKey) {
+  async swap (numberFrom, addressFrom, addressTo) {
     let web3 = window.web3;
 
     const contract = this.getContractInstance(web3);
@@ -135,29 +126,20 @@ const uni = {
     const input2 = [amountOutMin, path, this.accAddress, Date.now() + 1000]
     const input = this.WETH == addressFrom ? input2 : input1.concat(input2)
 
-    if (!isPrivateKey) {
-      // Call smart contract via metamask
-      contract.methods[methodName](...input)
-        .send(this.WETH == addressFrom
-          ? { from: this.accAddress, value: amountIn }
-          : { from: this.accAddress }
-        )
-    } else {
-      // Call smart contract via private key
-      const data = contract.methods[methodName](...input);
-      const params = {
-        nonce: web3.utils.toHex(await web3.eth.getTransactionCount(this.accAddress)),
-        gasLimit: web3.utils.toHex(await data.estimateGas(
-          { from: this.accAddress, value: this.WETH == addressFrom ? web3.utils.toHex(amountIn) : '0x00' }
-        )),
-        gasPrice: web3.utils.toHex(await web3.eth.getGasPrice()),
-        to: contract._address,
-        data: data.encodeABI(),
-        value: this.WETH == addressFrom ? web3.utils.toHex(amountIn) : '0x00'
-      }
-
-      await this.signTransaction(params);
+    // Call smart contract via private key
+    const data = contract.methods[methodName](...input);
+    const params = {
+      nonce: web3.utils.toHex(await web3.eth.getTransactionCount(this.accAddress)),
+      gasLimit: web3.utils.toHex(await data.estimateGas(
+        { from: this.accAddress, value: this.WETH == addressFrom ? web3.utils.toHex(amountIn) : '0x00' }
+      )),
+      gasPrice: web3.utils.toHex(await web3.eth.getGasPrice()),
+      to: contract._address,
+      data: data.encodeABI(),
+      value: this.WETH == addressFrom ? web3.utils.toHex(amountIn) : '0x00'
     }
+
+    await this.signTransaction(params);
   },
   // ============================================================
 
