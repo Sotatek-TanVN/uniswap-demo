@@ -31,9 +31,7 @@ import {
 import flatMap from "lodash.flatmap";
 import pairJson from "./pairABI.json";
 import factoryJson from "./factoryABI.json";
-import WalletConnectProvider from "@walletconnect/web3-provider";
 import { ethers } from 'ethers';
-import keythereum from 'keythereum';
 import { Contract, Provider } from 'ethers-multicall';
 const Tx = require('ethereumjs-tx');
 
@@ -42,13 +40,6 @@ const uni = {
   privateKey: process.env.VUE_APP_PRIVATE,
   WETH: weth[CHAIN_ID].address,
 
-  async connectToMetaMask () {
-    if (window.ethereum) {
-      window.web3 = new Web3(window.ethereum);
-      await window.ethereum.enable();
-    }
-  },
-
   async connectByPrivateKey () {
     try {
       const provider = new Web3.providers.HttpProvider(INFURA);
@@ -56,52 +47,6 @@ const uni = {
     } catch (err) {
       console.log(err)
     }
-  },
-
-  async connectByWalletConnect () {
-    try {
-      const provider = new WalletConnectProvider({ rpc: { 4: INFURA } });
-
-      await provider.enable();
-      // Subscribe to accounts change
-      provider.on("accountsChanged", (accounts) => {
-        console.log(accounts);
-      });
-
-      // Subscribe to chainId change
-      provider.on("chainChanged", (chainId) => {
-        console.log(chainId);
-      });
-
-      // Subscribe to session connection
-      provider.on("connect", () => {
-        console.log("connect");
-      });
-
-      // Subscribe to session disconnection
-      provider.on("disconnect", (code, reason) => {
-        console.log(code, reason);
-      });
-
-
-      window.web3 = new Web3(provider);
-    } catch (err) {
-      console.log(err)
-      // this.methodConnect = this.connectBy.PRIVATE_KEY
-    }
-  },
-
-  getPrivateKeyFromMnemonic (mnemonic) {
-    let mnemonicWallet = ethers.Wallet.fromMnemonic(mnemonic);
-    console.log(mnemonicWallet.privateKey);
-  },
-
-  getPrivateKeyFromKeystore () {
-    var keyobj = keythereum.importFromFile('0x...your..ether..address..', './Appdata/roaming/ethereum')
-
-    var privateKey = keythereum.recover('your_password', keyobj) //this takes a few seconds to finish
-
-    console.log(privateKey.toString('hex'));
   },
 
   getContractInstance (web3Instance) {

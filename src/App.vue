@@ -1,8 +1,6 @@
 <template>
   <div id="app">
-
     <div style="margin-top: 30px">
-
       <p>Currency In: </p>
       <input type="text" v-model="inputAmount" @change="onChangeInput($event)">
       <select name="currencyIn" v-model="currencyIn" @change="onChange($event)">
@@ -29,9 +27,6 @@
       </button>
       <button @click="swap()">
         Swap
-      </button>
-      <button @click="getTokenTransactions()">
-        Get Transactions
       </button>
 
       <div v-if="!loadingRoute">
@@ -65,19 +60,14 @@
         Finding Route {{ currencyIn && currencyIn.symbol }} - {{ currencyOut && currencyOut.symbol }}
       </div>
     </div>
-
-    <!-- <TradingRoute /> -->
-    <ListTokens />
   </div>
 </template>
 
 <script>
 import DEFAULT_TOKEN_LIST from './rinkebyToken.json'
-import ListTokens from './ListTokens'
 import { METHOD_CONNECT } from './methodConnect'
 import uni from './uni/index.js';
 import { TokenAmount, Token } from "@uniswap/sdk";
-import { FILTERED_TRANSACTIONS } from './transactionQuery'
 
 export default {
   name: 'App',
@@ -104,9 +94,6 @@ export default {
 
       isExactInput: true,
     }
-  },
-  components: {
-    ListTokens
   },
   methods: {
     async onChangeInput () {
@@ -219,38 +206,12 @@ export default {
     async getBalance () {
       await uni.getBalance(this.currencyIn.address, this.currencyOut.address);
     },
-
-    async connectWallet() {
-      localStorage.removeItem('walletconnect');
-      await uni.connectByPrivateKey()
-    },
-
-    async getTokenTransactions(allPairsFormatted) {
-      const transactions = {}
-      try {
-        let result = await window.client.query({
-          query: FILTERED_TRANSACTIONS,
-          variables: {
-            allPairs: allPairsFormatted,
-          },
-          fetchPolicy: 'cache-first',
-        })
-        transactions.swaps = result.data.swaps
-        console.log(JSON.stringify(transactions))
-      } catch (e) {
-        console.log(e)
-      }
-      return transactions
-    }
   },
 
   async mounted () {
-    await this.connectWallet()
-    // this.connectGrapthQL()
+    localStorage.removeItem('walletconnect');
+    await uni.connectByPrivateKey()
   },
-
-  created () {
-  }
 }
 </script>
 
