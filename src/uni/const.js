@@ -8,8 +8,8 @@ import {
     Percent,
 } from "@uniswap/sdk";
 
-export const INFURA = 'https://rinkeby.infura.io/v3/2806c626047f4fb590c7e20593b7dd73';
-export const INFURA_KEY = '2806c626047f4fb590c7e20593b7dd73';
+export const INFURA = 'https://rinkeby.infura.io/v3/d695b1c6f50849af85cb6e2784c0a62f';
+export const INFURA_KEY = 'd695b1c6f50849af85cb6e2784c0a62f';
 export const ROUTE_V2_ADDR = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D';
 export const ROUTE_V2_ABI = RouterV2.abi;
 export const ERC20_ABI = ERC20.abi;
